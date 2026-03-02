@@ -136,3 +136,19 @@ wxString ConfGetDEFolder()
     Rainman_DeleteCharArray(sDefault);
     return TheConfig->Read(AppStr(config_defolder), wsDefault);
 }
+
+wxString ConfGetDEModsFolder()
+{
+    char *sDefault;
+    try
+    {
+        sDefault = Rainman_GetDEModsPath();
+    }
+    catch (const CRainmanException &e)
+    {
+        throw CModStudioException(e, __FILE__, __LINE__, "Unable to get DoW:DE mods path");
+    }
+    wxString wsDefault = AsciiTowxString(sDefault);
+    Rainman_DeleteCharArray(sDefault);
+    return wsDefault;
+}

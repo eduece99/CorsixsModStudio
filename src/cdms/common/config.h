@@ -66,3 +66,10 @@ wxString ConfGetModToolsFolder();
     may throw a CRainmanException
 */
 wxString ConfGetDEFolder();
+
+//! Returns the DoW:DE user mods folder (%APPDATA%\Relic Entertainment\Dawn of War\mods)
+/*!
+    This is a deterministic path derived from the OS; no config override is needed.
+    may throw a CRainmanException
+*/
+wxString ConfGetDEModsFolder();

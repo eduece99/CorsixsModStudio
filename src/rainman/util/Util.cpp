@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/io/CFileSystemStore.h"
 #ifndef RAINMAN_GNUC
 #include <windows.h>
+#include <shlobj.h>
 #endif
 #include <cstring>
 #include "rainman/core/memdebug.h"
@@ -314,6 +315,39 @@ RAINMAN_API char *Rainman_GetDEPath()
 
     // Return the default path as the registry failed us :/
     return strcpy(sDEPath, "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Dawn of War Definitive Edition");
+}
+
+RAINMAN_API char *Rainman_GetDEModsPath()
+{
+    /*
+        Returns %APPDATA%\Relic Entertainment\Dawn of War\mods
+        Creates the directory tree if it does not already exist.
+    */
+    char *sModsPath = CHECK_MEM(new char[MAX_PATH + 1]);
+
+#ifndef RAINMAN_GNUC
+    char sAppData[MAX_PATH + 1];
+    if (SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, sAppData) != S_OK)
+    {
+        delete[] sModsPath;
+        QUICK_THROW("Failed to get APPDATA folder path");
+    }
+
+    snprintf(sModsPath, MAX_PATH + 1, "%s\\Relic Entertainment\\Dawn of War\\mods", sAppData);
+
+    // Create each level of the directory tree if it doesn't exist
+    char sPartial[MAX_PATH + 1];
+    snprintf(sPartial, sizeof(sPartial), "%s\\Relic Entertainment", sAppData);
+    CreateDirectoryA(sPartial, nullptr);
+    snprintf(sPartial, sizeof(sPartial), "%s\\Relic Entertainment\\Dawn of War", sAppData);
+    CreateDirectoryA(sPartial, nullptr);
+    CreateDirectoryA(sModsPath, nullptr);
+#else
+    delete[] sModsPath;
+    QUICK_THROW("Rainman_GetDEModsPath is only supported on Windows");
+#endif
+
+    return sModsPath;
 }
 
 RAINMAN_API CRgdHashTable *Rainman_LoadDictionaries(const char *sPath, char **sCustom, bool bIgnoreLoadErrors)
