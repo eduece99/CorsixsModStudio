@@ -32,6 +32,7 @@
 // ----------------------------
 #include "interfaces/IImageView.h"
 #include "presenters/CImagePresenter.h"
+#include "async/CWxTaskRunner.h"
 #include <rainman/formats/CRgtFile.h>
 #include <wx/treectrl.h>
 #include <wx/propgrid/propgrid.h>
@@ -46,6 +47,8 @@ class frmImageViewer : public wxWindow, public IImageView
     wxString m_sFilename;
     wxTreeItemId m_oFileParent;
     bool m_bOwnRgt;
+    wxStaticText *m_pLoadingLabel = nullptr;
+    wxStaticBoxSizer *m_pImgContentSizer = nullptr;
 
   public:
     frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wxWindow *parent, wxWindowID id, CRgtFile *pImage,
@@ -74,4 +77,5 @@ class frmImageViewer : public wxWindow, public IImageView
 
   private:
     CImagePresenter m_presenter;
+    CWxTaskRunner m_taskRunner; // Must be declared last — destroyed first to join background thread
 };
