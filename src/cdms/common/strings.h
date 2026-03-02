@@ -290,7 +290,7 @@ S(view_preview_enabled_help, "Enable or disable single-click file preview in the
 S(file_menu, "&File")
 S(new_mod, "New Mod")
 S(new_mod_menu, "&New Mod\tCTRL+N")
-S(new_mod_help, "Create a new mod for DoW / WA / DC / SS / CoH / OF")
+S(new_mod_help, "Create a new mod")
 S(open_mod, "Load DoW/WA Mod")
 S(open_mod_menu, "&Open DoW/WA Mod")
 S(open_mod_help, "Open an existing mod for Dawn of War / Winter Assault")

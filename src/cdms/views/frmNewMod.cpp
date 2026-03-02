@@ -53,11 +53,12 @@ wxString frmNewMod::_UpdatePath(wxString sName)
     return sVal;
 }
 
-const int g_kCompanyOfHeroes = 0;
-const int g_kDawnOfWar = 1;
-const int g_kWinterAssault = 2;
-const int g_kDarkCrusade = 3;
-const int g_kSoulstorm = 4;
+const int g_kDefinitiveEdition = 0;
+const int g_kCompanyOfHeroes = 1;
+const int g_kDawnOfWar = 2;
+const int g_kWinterAssault = 3;
+const int g_kDarkCrusade = 4;
+const int g_kSoulstorm = 5;
 
 frmNewMod::frmNewMod()
     : wxDialog(wxTheApp->GetTopWindow(), -1, AppStr(new_mod), wxPoint(0, 0), wxDefaultSize,
@@ -99,12 +100,22 @@ frmNewMod::frmNewMod()
         throw CModStudioException(e, __FILE__, __LINE__, "Unable to get SS folder");
     }
 
+    try
+    {
+        m_sDEPath = ConfGetDEFolder();
+    }
+    catch (const CRainmanException &e)
+    {
+        throw CModStudioException(e, __FILE__, __LINE__, "Unable to get DE folder");
+    }
+
     CentreOnParent();
     wxFlexGridSizer *pTopSizer = new wxFlexGridSizer(2);
     pTopSizer->SetFlexibleDirection(wxHORIZONTAL);
     pTopSizer->AddGrowableCol(1, 1);
 
     wxArrayString aBases;
+    aBases.Add(wxT("Dawn of War: Definitive Edition"));
     aBases.Add(wxT("Company of Heroes / Opposing Fronts"));
     aBases.Add(wxT("Dawn of War"));
     aBases.Add(wxT("Dawn of War: Winter Assault"));
@@ -132,14 +143,14 @@ frmNewMod::frmNewMod()
     wxBoxSizer *pDestSizer = new wxBoxSizer(wxHORIZONTAL);
 
     pDestSizer->Add(
-        SBT(m_pCreation = new wxStaticText(this, -1, m_sDoWPath, wxDefaultPosition, wxDefaultSize, wxST_NO_AUTORESIZE),
+        SBT(m_pCreation = new wxStaticText(this, -1, m_sDEPath, wxDefaultPosition, wxDefaultSize, wxST_NO_AUTORESIZE),
             AppStr(newmod_destinationhelp)),
         1, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxALL, 3);
     pDestSizer->Add(SBT(new wxButton(this, IDC_Browse, AppStr(sgapack_browse)), AppStr(sgapack_dirselect_label_help)),
                     0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxFIXED_MINSIZE | wxALL, 3);
     pTopSizer->Add(pDestSizer, 1, wxEXPAND);
 
-    m_pList->SetSelection(g_kDawnOfWar);
+    m_pList->SetSelection(g_kDefinitiveEdition);
 
     wxBoxSizer *pButtonSizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -158,7 +169,11 @@ wxString frmNewMod::GetPath() { return m_sDoWPath; }
 
 void frmNewMod::OnGameChange(wxCommandEvent &event)
 {
-    if (event.GetSelection() == g_kCompanyOfHeroes)
+    if (event.GetSelection() == g_kDefinitiveEdition)
+    {
+        m_pCreation->SetLabel(m_sDEPath);
+    }
+    else if (event.GetSelection() == g_kCompanyOfHeroes)
     {
         m_pCreation->SetLabel(m_sCoHPath);
     }
@@ -183,7 +198,12 @@ void frmNewMod::OnBrowseClick(wxCommandEvent &event)
 
     m_pCreation->SetLabel(sVal);
 
-    if (event.GetSelection() == g_kCompanyOfHeroes)
+    if (event.GetSelection() == g_kDefinitiveEdition)
+    {
+        m_sDEPath = sVal;
+        TheConfig->Write(AppStr(config_defolder), sVal);
+    }
+    else if (event.GetSelection() == g_kCompanyOfHeroes)
     {
         m_sCoHPath = sVal;
         TheConfig->Write(AppStr(config_cohfolder), sVal);
@@ -419,8 +439,62 @@ void frmNewMod::OnNewClick(wxCommandEvent &event)
         EndModal(wxID_CLOSE);
         return;
     }
-    if (m_pList->GetSelection() == g_kDawnOfWar || m_pList->GetSelection() == g_kWinterAssault ||
-        m_pList->GetSelection() == g_kDarkCrusade || m_pList->GetSelection() == g_kSoulstorm)
+    if (m_pList->GetSelection() == g_kDefinitiveEdition)
+    {
+        // DE uses a simplified folder structure: just Data and Locale
+        char *saDirExt = new char[strlen(saDir) + 30];
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Data");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Chinese");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Czech");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\English");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\English_Chinese");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\French");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\German");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Italian");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Japanese");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Korean");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Korean adult");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Polish");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Russian");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Slovak");
+        _mkdir(saDirExt);
+        strcpy(saDirExt, saDir);
+        strcat(saDirExt, "\\Locale\\Spanish");
+        _mkdir(saDirExt);
+        delete[] saDirExt;
+    }
+    else if (m_pList->GetSelection() == g_kDawnOfWar || m_pList->GetSelection() == g_kWinterAssault ||
+             m_pList->GetSelection() == g_kDarkCrusade || m_pList->GetSelection() == g_kSoulstorm)
     {
         char *saDirExt = new char[strlen(saDir) + 30];
         strcpy(saDirExt, saDir);
@@ -540,6 +614,30 @@ void frmNewMod::OnNewClick(wxCommandEvent &event)
     if (m_pList->GetSelection() == g_kCompanyOfHeroes)
     {
         _MakeCOH(saNice.get(), sDirBackup, sTmpDir, f);
+    }
+    else if (m_pList->GetSelection() == g_kDefinitiveEdition)
+    {
+        saNice = wxStringToAscii(m_pName->GetValue());
+
+        fprintf(f, "[global]\xD\n");
+        fprintf(f, "UIName = %s\xD\n", saNice.get());
+        fprintf(f, "Description = \xD\n");
+        fprintf(f, "DllName = DXP3Mod\xD\n");
+        fprintf(f, "ModFolder = %s\xD\n", sTmpDir);
+        fprintf(f, "ModVersion = 1.0\xD\n");
+        fprintf(f, "TextureFE = \xD\n");
+        fprintf(f, "TextureIcon = \xD\n");
+        fprintf(f, "Playable = 1\xD\n");
+        fprintf(f, "RuntimeMode = 3\xD\n");
+        fprintf(f, "\xD\n");
+        free(sTmpDir);
+        fprintf(f, "DataFolder.1 = %%LOCALE%%\\Data\xD\n");
+        fprintf(f, "DataFolder.2 = Data\xD\n");
+        fprintf(f, "\xD\n");
+        fprintf(f, "RequiredMod.1 = DXP3\xD\n");
+        fprintf(f, "RequiredMod.2 = DXP2\xD\n");
+        fprintf(f, "RequiredMod.3 = WXP\xD\n");
+        fprintf(f, "RequiredMod.4 = W40k\xD\n");
     }
     else
     {

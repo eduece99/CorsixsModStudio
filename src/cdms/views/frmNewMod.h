@@ -37,7 +37,7 @@ class frmNewMod : public wxDialog
     wxTextCtrl *m_pName;
     wxChoice *m_pList;
     wxStaticText *m_pCreation;
-    wxString m_sDoWPath, m_sCoHPath, m_sDCPath, m_sSSPath;
+    wxString m_sDoWPath, m_sCoHPath, m_sDCPath, m_sSSPath, m_sDEPath;
     wxString _UpdatePath(wxString sName);
 
     void _MakeCOH(char *sNiceName, char *sDirectoryFullPath, char *sDirectoryName, FILE *fModule);
