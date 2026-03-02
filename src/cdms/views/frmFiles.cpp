@@ -34,6 +34,7 @@
 #include "presenters/CFileTreePresenter.h"
 #include "res/Icons.h"
 #include <wx/artprov.h>
+#include <wx/wupdlock.h>
 #include <zlib.h>
 extern "C"
 {
@@ -502,6 +503,7 @@ void frmFiles::OnNodeActivate(wxTreeEvent &event)
             {
                 try
                 {
+                    wxWindowUpdateLocker lock(TheConstruct->GetTabs());
                     (*itr)->VHandle(sPath, oParent, oCurrent);
                 }
                 catch (const CRainmanException &e)
@@ -566,6 +568,7 @@ void frmFiles::OnNodeSelected(wxTreeEvent &event)
         {
             try
             {
+                wxWindowUpdateLocker lock(tabMgr.GetTabs());
                 tabMgr.ClosePreviewTab();
                 size_t countBefore = tabMgr.GetTabs()->GetPageCount();
                 oCurrent = event.GetItem();
@@ -659,6 +662,7 @@ void frmFiles::OnMenu(wxCommandEvent &event)
     {
         try
         {
+            wxWindowUpdateLocker lock(TheConstruct->GetTabs());
             if (m_bPopupIsFolder)
             {
                 m_vFolderHandlers[event.GetId() - (wxID_HIGHEST + 1337)]->VHandle(m_sPopupFileName, m_oPopupTreeParent,
