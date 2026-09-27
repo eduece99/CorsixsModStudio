@@ -34,6 +34,12 @@ add_library(lua502 STATIC
 target_include_directories(lua502 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/vendor/lua502)
 target_compile_definitions(lua502 PRIVATE _CRT_SECURE_NO_WARNINGS)
 set_target_properties(lua502 PROPERTIES C_STANDARD 99)
+# MSVC /Ot yields an invalid negative array size in Lua 5.0.2's table rehash
+# on x64. Keep Release optimizations and favor size for this file only.
+if(MSVC)
+    set_source_files_properties(vendor/lua502/ltable.c PROPERTIES
+        COMPILE_OPTIONS "$<$<CONFIG:Release>:/Os>")
+endif()
 
 # Lua 5.1.2 - vendored static library with renamed symbols
 # All public symbols are prefixed lua51_ to avoid conflicts with Lua 5.0.2

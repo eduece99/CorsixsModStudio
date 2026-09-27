@@ -70,3 +70,18 @@ if(LUALS_DIR AND EXISTS "${LUALS_DIR}/bin/lua-language-server.exe")
         COMMENT "Copying LuaLS to output directory"
     )
 endif()
+
+install(TARGETS ModStudioDE RUNTIME DESTINATION ".")
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/Mod_Studio_Files/"
+    DESTINATION "Mod_Studio_Files")
+install(CODE "
+    foreach(file bin/lua-language-server.exe main.lua script/client.lua LICENSE)
+        if(NOT EXISTS \"${LUALS_DIR}/\${file}\")
+            message(FATAL_ERROR \"Missing LuaLS release file: ${LUALS_DIR}/\${file}\")
+        endif()
+    endforeach()
+")
+install(DIRECTORY "${LUALS_DIR}/"
+    DESTINATION "Mod_Studio_Files/lsp/luals")
+install(FILES "${CMAKE_SOURCE_DIR}/LICENSE" "${CMAKE_SOURCE_DIR}/README.md"
+    DESTINATION ".")

@@ -12,6 +12,34 @@ project(CorsixModStudio
     LANGUAGES C CXX
 )
 
+if("$ENV{GITHUB_REF_TYPE}" STREQUAL "tag")
+    if(NOT "$ENV{GITHUB_REF_NAME}" MATCHES "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+       OR NOT "$ENV{GITHUB_REF_NAME}" STREQUAL "v${PROJECT_VERSION}")
+        message(FATAL_ERROR "Release tag must match project version v${PROJECT_VERSION}")
+    endif()
+
+    file(READ "${CMAKE_SOURCE_DIR}/vcpkg.json" vcpkg_manifest)
+    string(JSON manifest_version GET "${vcpkg_manifest}" version)
+    file(READ "${CMAKE_SOURCE_DIR}/src/cdms/common/strings.h" app_strings)
+    file(READ "${CMAKE_SOURCE_DIR}/src/cdms/resource.rc" app_resources)
+    string(REPLACE "." "," rc_version "${PROJECT_VERSION}")
+    string(REPLACE "." ", " rc_string_version "${PROJECT_VERSION}")
+    string(FIND "${app_strings}" "S(app_version, \"${PROJECT_VERSION}\")" app_version_index)
+    foreach(resource_version
+            "FILEVERSION ${rc_version},0"
+            "PRODUCTVERSION ${rc_version},0"
+            "VALUE \"FileVersion\", \"${rc_string_version}, 0\""
+            "VALUE \"ProductVersion\", \"${rc_string_version}, 0\"")
+        string(FIND "${app_resources}" "${resource_version}" resource_version_index)
+        if(resource_version_index EQUAL -1)
+            message(FATAL_ERROR "Release version mismatch in src/cdms/resource.rc: ${resource_version}")
+        endif()
+    endforeach()
+    if(NOT manifest_version STREQUAL PROJECT_VERSION OR app_version_index EQUAL -1)
+        message(FATAL_ERROR "Release version mismatch in vcpkg.json or src/cdms/common/strings.h")
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -82,3 +110,9 @@ if(BUILD_TESTING)
     add_subdirectory(tests/cdms)
     add_subdirectory(tests/lsp)
 endif()
+
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_NAME "CorsixModStudio")
+set(CPACK_PACKAGE_FILE_NAME "CorsixModStudio-v${PROJECT_VERSION}-win-x64")
+set(CPACK_PACKAGE_CHECKSUM "SHA256")
+include(CPack)

@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025-vs2026
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: e6ebaa9c3ca8fca90c63af62fc895c2486609580
+
+      - name: Disable crash dialogs
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v DontShowUI /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
+
+      - name: Build, test, and package Release
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: default
+          buildPreset: release
+          testPreset: release
+          packagePreset: release
+
+      - name: Verify tag still targets this build
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $refs = @(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}")
+          if ($LASTEXITCODE -ne 0 -or $refs.Count -eq 0) { throw "Remote tag $tag not found" }
+          $peeled = @($refs | Where-Object { $_ -match '\^\{\}$' })
+          $tip = if ($peeled.Count) { $peeled[0] } else { $refs[0] }
+          if (($tip -split '\s+')[0] -ne (git rev-parse HEAD)) {
+            throw "Remote tag $tag no longer points at the built commit"
+          }
+
+      - name: Reject an existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+          $url = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$env:GITHUB_REF_NAME"
+          $response = Invoke-WebRequest -Uri $url -Headers $headers -SkipHttpErrorCheck
+          if ($response.StatusCode -eq 200) { throw "Release $env:GITHUB_REF_NAME already exists" }
+          if ($response.StatusCode -ne 404) { throw "Release lookup failed: HTTP $($response.StatusCode)" }
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            dist\CorsixModStudio-${{ github.ref_name }}-win-x64.zip
+            dist\CorsixModStudio-${{ github.ref_name }}-win-x64.zip.sha256
+          fail_on_unmatched_files: true
+          generate_release_notes: true

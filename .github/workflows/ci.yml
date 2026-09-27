@@ -6,15 +6,23 @@ on:
       - "src/**"
       - "tests/**"
       - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "Mod_Studio_Files/**"
+      - "triplets/**"
       - "vcpkg.json"
       - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
   pull_request:
     paths:
       - "src/**"
       - "tests/**"
       - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "Mod_Studio_Files/**"
+      - "triplets/**"
       - "vcpkg.json"
       - ".github/workflows/ci.yml"
+      - ".github/workflows/release.yml"
 
 jobs:
   build-and-test:

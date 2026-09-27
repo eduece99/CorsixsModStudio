@@ -107,6 +107,27 @@ See [`docs/lua-language-server-integration.md`](docs/lua-language-server-integra
 
 ## Building
 
+### Download a prebuilt release
+
+On Windows 10 or 11 (x64), download the latest `CorsixModStudio-vX.Y.Z-win-x64.zip`
+from [GitHub Releases](https://github.com/jbelford/CorsixsModStudio/releases).
+Extract the entire ZIP to a **writable** folder, then run `ModStudioDE.exe`
+from that folder. Keep `Mod_Studio_Files` next to the executable; launch from
+the extracted folder (not directly from inside the ZIP). No Visual Studio,
+vcpkg, or separate Lua Language Server download is needed. The `.sha256`
+asset contains the archive's SHA-256 checksum for verification.
+
+### Publishing a release
+
+Update the version in `CMakeLists.txt`, `vcpkg.json`,
+`src/cdms/common/strings.h`, and `src/cdms/resource.rc` together. Once the
+release commit is on the intended branch, push a matching `vX.Y.Z` tag.
+The Release workflow builds Windows x64, runs Release tests, checks the
+bundled files and version, and publishes the ZIP and checksum only on success.
+It will not overwrite an existing published release.
+To make the same portable ZIP locally after a Release build, run
+`cpack --preset release`; CMake install rules define its contents.
+
 ### Prerequisites
 
 - **Visual Studio 2022 or later** (tested with VS 2026 Enterprise)

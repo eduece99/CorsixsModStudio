@@ -89,5 +89,14 @@
                 "timeout": 120
             }
         }
+    ],
+    "packagePresets": [
+        {
+            "name": "release",
+            "configurePreset": "default",
+            "generators": ["ZIP"],
+            "configurations": ["Release"],
+            "packageDirectory": "${sourceDir}/dist"
+        }
     ]
 }

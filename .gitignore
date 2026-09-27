@@ -5,6 +5,8 @@ build-*/
 out/
 cmake-build-*/
 
+dist/
+
 # vcpkg installed packages (restored by vcpkg on build)
 vcpkg_installed/
 
