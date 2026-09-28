@@ -51,12 +51,14 @@
         {
             "name": "debug",
             "configurePreset": "default",
-            "configuration": "Debug"
+            "configuration": "Debug",
+            "jobs": 2
         },
         {
             "name": "release",
             "configurePreset": "default",
-            "configuration": "Release"
+            "configuration": "Release",
+            "jobs": 2
         },
         {
             "name": "tidy-debug",

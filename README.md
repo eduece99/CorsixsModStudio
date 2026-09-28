@@ -165,9 +165,6 @@ cmake --preset default
 cmake --build --preset debug
 ctest --preset debug
 
-# Optional on machines with spare CPU and memory: build two projects at once
-cmake --build --preset debug --parallel 2
-
 # Release build (LTO, static CRT)
 cmake --build --preset release
 
@@ -181,9 +178,9 @@ cmake --build --preset tidy-debug
 .\tools\run-clang-tidy.ps1 -Fix                               # auto-fix
 ```
 
-The GUI and CDMS tests precompile commonly used wxWidgets headers. The
-parallel build option is local and opt-in; benchmark it before using it on
-smaller CI runners, since compilation already uses MSVC `/MP`.
+The GUI and CDMS tests precompile commonly used wxWidgets headers. Debug and
+Release build presets run two projects concurrently; the compiler also uses
+MSVC `/MP` within each project.
 
 ### Dependencies (auto-installed by vcpkg)
 
