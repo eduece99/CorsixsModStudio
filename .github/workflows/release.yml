@@ -14,12 +14,21 @@ jobs:
     concurrency:
       group: release-${{ github.ref }}
       cancel-in-progress: false
+    env:
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\vcpkg_cache,readwrite
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up CMake
         uses: lukka/get-cmake@latest
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: vcpkg_cache
+          key: windows-2025-vs2026-vcpkg-v1-${{ hashFiles('vcpkg.json', 'triplets/**') }}
+          restore-keys: windows-2025-vs2026-vcpkg-v1-
 
       - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
