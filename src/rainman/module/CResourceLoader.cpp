@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <future>
 #include <optional>
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <direct.h>
@@ -682,98 +683,84 @@ bool CResourceLoader::IsToBeLoaded(const CModuleFile &module, CModuleFile::CCohD
 
 void CResourceLoader::LoadDataGeneric(CModuleFile &module, CALLBACK_ARG)
 {
-    char *sDataGenericValue = nullptr;
-    std::string sPipelineFile = module.m_sApplicationPath + "pipeline.ini";
-    FILE *fModule = fopen(sPipelineFile.c_str(), "rb");
-    if (fModule == nullptr)
+    const std::string sPipelineFile = module.m_sApplicationPath + "pipeline.ini";
+    std::unique_ptr<FILE, decltype(&fclose)> fModule(fopen(sPipelineFile.c_str(), "rb"), &fclose);
+    if (!fModule && !module.m_sGameInstallPath.empty())
+    {
+        fModule.reset(fopen((module.m_sGameInstallPath + "pipeline.ini").c_str(), "rb"));
+    }
+    if (!fModule)
     {
         return;
     }
     CallCallback(THE_CALLBACK, "Parsing file \'pipeline.ini\'");
 
-    char *sSectionName = new char[16 + module.m_metadata.m_sModFolder.size()];
-    sprintf(sSectionName, "project:%s", module.m_metadata.m_sModFolder.c_str());
-
+    const std::string sSection =
+        "project:" + (module.m_sGameInstallPath.empty() ? module.m_metadata.m_sModFolder : module.m_sFileMapName);
+    std::string sDataGenericValue;
     bool bInSection = false;
-    while (!feof(fModule))
+    while (!feof(fModule.get()))
     {
-        char *sLine = Util_fgetline(fModule);
-        if (sLine == nullptr)
+        std::unique_ptr<char[]> sLine(Util_fgetline(fModule.get()));
+        if (!sLine)
         {
-            fclose(fModule);
-            delete[] sSectionName;
-            if (sDataGenericValue)
-            {
-                free(sDataGenericValue);
-            }
             throw CRainmanException(__FILE__, __LINE__, "Error reading from file");
         }
-        char *sCommentBegin = strchr(sLine, ';');
+        char *sCommentBegin = strchr(sLine.get(), ';');
         if (sCommentBegin)
         {
             *sCommentBegin = 0;
         }
-        char *sEqualsChar = strchr(sLine, '=');
+        char *sEqualsChar = strchr(sLine.get(), '=');
         if (sEqualsChar)
         {
-            char *sKey = sLine;
+            char *sKey = sLine.get();
             char *sValue = sEqualsChar + 1;
             *sEqualsChar = 0;
             Util_TrimWhitespace(&sKey);
             Util_TrimWhitespace(&sValue);
-            if (bInSection)
+            if (bInSection && stricmp(sKey, "DataGeneric") == 0)
             {
-                try
-                {
-                    if (stricmp(sKey, "DataGeneric") == 0)
-                    {
-                        if (sDataGenericValue)
-                        {
-                            free(sDataGenericValue);
-                        }
-                        sDataGenericValue = CHECK_MEM(strdup(sValue));
-                    }
-                }
-                catch (const CRainmanException &e)
-                {
-                    delete[] sLine;
-                    delete[] sSectionName;
-                    if (sDataGenericValue)
-                    {
-                        free(sDataGenericValue);
-                    }
-                    fclose(fModule);
-                    throw e;
-                }
+                sDataGenericValue = sValue;
             }
         }
         else
         {
-            char *sLeftBraceChar = strchr(sLine, '[');
+            char *sLeftBraceChar = strchr(sLine.get(), '[');
             char *sRightBraceChar = sLeftBraceChar ? strchr(sLeftBraceChar, ']') : nullptr;
             if (sLeftBraceChar && sRightBraceChar)
             {
                 *sRightBraceChar = 0;
                 ++sLeftBraceChar;
-                bInSection = false;
-                if (stricmp(sLeftBraceChar, sSectionName) == 0)
-                {
-                    bInSection = true;
-                }
+                bInSection = stricmp(sLeftBraceChar, sSection.c_str()) == 0;
             }
         }
-        delete[] sLine;
     }
-    delete[] sSectionName;
-    fclose(fModule);
 
-    if (sDataGenericValue)
+    if (!sDataGenericValue.empty())
     {
-        std::string sDataGenericFullPath = module.m_sApplicationPath + sDataGenericValue;
-        CResourceLoader::DoLoadFolder(module, sDataGenericFullPath.c_str(), (module.m_pParentModule == nullptr), 99,
-                                      "Generic", "DataGeneric", THE_CALLBACK);
-        // NOLINTNEXTLINE(clang-analyzer-unix.MismatchedDeallocator) -- strdup uses malloc; free() is correct
-        free(sDataGenericValue);
+        std::string sDataGenericFullPath;
+        const bool bAppPath =
+            strnicmp(sDataGenericValue.c_str(), "%app%", 5) == 0 &&
+            (sDataGenericValue.size() == 5 || sDataGenericValue[5] == '\\' || sDataGenericValue[5] == '/');
+        if (bAppPath)
+        {
+            const auto iRelative = sDataGenericValue.find_first_not_of("\\/", 5);
+            sDataGenericFullPath =
+                module.m_sGameInstallPath.empty() ? module.m_sApplicationPath : module.m_sGameInstallPath;
+            if (iRelative != std::string::npos)
+            {
+                sDataGenericFullPath += sDataGenericValue.substr(iRelative);
+            }
+        }
+        else
+        {
+            sDataGenericFullPath = module.m_sApplicationPath + sDataGenericValue;
+        }
+        const bool bDefaultWrite =
+            module.m_pParentModule == nullptr && !(bAppPath && !module.m_sGameInstallPath.empty());
+        CResourceLoader::DoLoadFolder(module, sDataGenericFullPath.c_str(), bDefaultWrite, 99, "Generic", "DataGeneric",
+                                      THE_CALLBACK);
     }
 }
 
@@ -1195,23 +1182,37 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
         {
             for (auto &pReqHandler : module.m_vRequireds)
             {
-                CModuleFile *pReq = CHECK_MEM(new CModuleFile);
+                auto pReq = std::make_unique<CModuleFile>();
                 pReq->m_sLocale = module.m_sLocale;
 
                 std::string sFilePath = module.m_sApplicationPath + pReqHandler->m_sName + ".module";
+                if (!module.m_sGameInstallPath.empty())
+                {
+                    std::error_code ec;
+                    const bool bLocalModule = std::filesystem::is_regular_file(sFilePath, ec);
+                    if (ec && ec != std::errc::no_such_file_or_directory)
+                    {
+                        throw CRainmanException(nullptr, __FILE__, __LINE__, "Cannot inspect required module '%s': %s",
+                                                sFilePath.c_str(), ec.message().c_str());
+                    }
+                    if (!bLocalModule)
+                    {
+                        sFilePath = module.m_sGameInstallPath + pReqHandler->m_sName + ".module";
+                    }
+                }
                 pReq->LoadModuleFile(sFilePath.c_str());
 
                 pReq->m_pParentModule = &module;
                 pReq->m_pNewFileMap = module.m_pNewFileMap;
                 pReq->m_pFSS = module.m_pFSS;
-                pReq->m_sApplicationPath = module.m_sApplicationPath;
+                pReq->m_sGameInstallPath = module.m_sGameInstallPath;
                 pReq->m_iFileMapModNumber = static_cast<unsigned short>(15000 + pReqHandler->m_iNumber);
 
-                pReqHandler->m_pHandle = pReq;
+                pReqHandler->m_pHandle = pReq.release();
 
-                pReq->ReloadResources(iReloadWhatRequiredMods & (~CModuleFile::RR_Engines) &
-                                          (~CModuleFile::RR_RequiredMods),
-                                      0, 0, THE_CALLBACK);
+                pReqHandler->m_pHandle->ReloadResources(iReloadWhatRequiredMods & (~CModuleFile::RR_Engines) &
+                                                            (~CModuleFile::RR_RequiredMods),
+                                                        0, 0, THE_CALLBACK);
             }
         }
         auto tPhaseEnd = std::chrono::steady_clock::now();
@@ -1236,7 +1237,9 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
             pEngine->m_pParentModule = &module;
             pEngine->m_pNewFileMap = module.m_pNewFileMap;
             pEngine->m_pFSS = module.m_pFSS;
-            pEngine->m_sApplicationPath = module.m_sApplicationPath;
+            pEngine->m_sApplicationPath =
+                module.m_sGameInstallPath.empty() ? module.m_sApplicationPath : module.m_sGameInstallPath;
+            pEngine->m_sGameInstallPath = module.m_sGameInstallPath;
             pEngine->m_iFileMapModNumber = static_cast<unsigned short>(30001);
 
             {

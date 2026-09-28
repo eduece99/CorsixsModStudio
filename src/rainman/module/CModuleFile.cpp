@@ -327,6 +327,7 @@ void CModuleFile::_Clean()
 {
     m_eModuleType = MT_DawnOfWar;
     m_sApplicationPath.clear();
+    m_sGameInstallPath.clear();
     m_sFilename.clear();
     m_sScenarioPackRootFolder.clear();
     m_saScenarioPackRootFolder.clear();
@@ -601,6 +602,15 @@ void CModuleFile::ReloadResources(unsigned long iReloadWhat, unsigned long iRelo
 }
 
 const char *CModuleFile::GetApplicationPath() const { return m_sApplicationPath.c_str(); }
+
+void CModuleFile::SetGameInstallPath(const char *sPath)
+{
+    m_sGameInstallPath = sPath ? sPath : "";
+    if (!m_sGameInstallPath.empty() && m_sGameInstallPath.back() != '\\' && m_sGameInstallPath.back() != '/')
+    {
+        m_sGameInstallPath += '\\';
+    }
+}
 
 void CModuleFile::NewUCS(const char *sName, std::shared_ptr<CUcsFile> pUcs)
 {

@@ -28,6 +28,7 @@
 #include "views/frmRgdEditor.h"
 #include "common/strconv.h"
 #include <memory>
+#include <stdexcept>
 #include <fstream>
 #include <rainman/io/CFileSystemStore.h>
 #include <rainman/module/CFileMap.h>
@@ -53,13 +54,20 @@ extern "C"
 #include "common/Common.h"
 #include <rainman/core/RainmanLog.h>
 #include <wx/filename.h>
+#include <wx/dirdlg.h>
 #include <wx/stdpaths.h>
+#include "views/frmModBrowser.h"
+#include "views/frmDeArchive.h"
+#include "views/frmDeFileEditor.h"
 
 BEGIN_EVENT_TABLE(ConstructFrame, wxFrame)
 EVT_MENU(IDM_LoadModDoWWA, ConstructFrame::OnOpenModDoW)
 EVT_MENU(IDM_LoadModDC, ConstructFrame::OnOpenModDC)
 EVT_MENU(IDM_LoadModSS, ConstructFrame::OnOpenModSS)
 EVT_MENU(IDM_LoadModDE, ConstructFrame::OnOpenModDE)
+EVT_MENU(IDM_BrowseModsDE, ConstructFrame::OnBrowseModsDE)
+EVT_MENU(IDM_ConfigureDEInstall, ConstructFrame::OnConfigureDEInstall)
+EVT_MENU(IDM_DEArchive, ConstructFrame::OnDEArchive)
 EVT_MENU(IDM_LoadModCoH, ConstructFrame::OnOpenModCoH)
 EVT_MENU(IDM_LoadSga, ConstructFrame::OnOpenSga)
 EVT_MENU(wxID_EXIT, ConstructFrame::OnQuit)
@@ -109,6 +117,11 @@ void ConstructFrame::OnTabClosing(wxAuiNotebookEvent &event)
         {
         case wxYES:
             pSaveable->DoSave();
+            if (pSaveable->IsModified())
+            {
+                event.Veto();
+                return;
+            }
             break;
         case wxCANCEL:
             event.Veto();
@@ -246,9 +259,24 @@ void ConstructFrame::OnRelicToolCommand(wxCommandEvent &event)
         return;
     }
 
-    wxString sFolder = tool.sResolvedPath.BeforeLast('\\');
+    wxString sFolder = RelicToolResolver::GetWorkingDirectory(tool.sResolvedPath, m_moduleManager.GetModuleFile());
+    wxString sParameters;
+    if (m_moduleManager.HasModule())
+    {
+        try
+        {
+            sParameters = RelicToolResolver::GetToolParameters(tool.sExeName, m_moduleManager.GetModuleFile(),
+                                                               GetModuleService().GetModFolder());
+        }
+        catch (const std::invalid_argument &e)
+        {
+            ThemeColours::ShowMessageBox(wxString::FromUTF8(e.what()), wxT("Cannot launch Relic tool"),
+                                         wxOK | wxICON_ERROR, this);
+            return;
+        }
+    }
     auto result = reinterpret_cast<INT_PTR>(
-        ShellExecute((HWND)GetHandle(), wxT("open"), tool.sResolvedPath, wxT(""), sFolder, SW_SHOWNORMAL));
+        ShellExecute((HWND)GetHandle(), wxT("open"), tool.sResolvedPath, sParameters, sFolder, SW_SHOWNORMAL));
     if (result <= 32)
     {
         ThemeColours::ShowMessageBox(wxT("Failed to launch ") + tool.sExeName, wxT("Error"), wxOK | wxICON_ERROR);
@@ -423,7 +451,7 @@ void ConstructFrame::LaunchMod(wxCommandEvent &event)
 
     // Scan for known executables in priority order
     static const wxChar *kExeNames[] = {wxT("Soulstorm.exe"), wxT("DarkCrusade.exe"), wxT("W40kWA.exe"),
-                                        wxT("W40k.exe"), wxT("RelicCOH.exe")};
+                                        wxT("W40k.exe"),      wxT("W40k_gog.exe"),    wxT("RelicCOH.exe")};
     wxString sCommand;
     for (const auto *exe : kExeNames)
     {
@@ -432,6 +460,29 @@ void ConstructFrame::LaunchMod(wxCommandEvent &event)
         {
             sCommand = sCandidate;
             break;
+        }
+    }
+
+    if (sCommand.IsEmpty() && GetModuleService().GetModuleType() == CModuleFile::MT_DawnOfWar)
+    {
+        try
+        {
+            const wxString userModsRoot = wxFileName::DirName(ConfGetDEModsFolder()).GetPathWithSep();
+            if (sFolder.Left(userModsRoot.length()).CmpNoCase(userModsRoot) == 0)
+            {
+                const wxString gameFolder = ConfGetDEFolder();
+                if (ConfIsDEInstallFolder(gameFolder))
+                {
+                    sFolder = wxFileName::DirName(gameFolder).GetPathWithSep();
+                    sCommand = sFolder + (wxFileName::FileExists(sFolder + wxT("W40k.exe")) ? wxT("W40k.exe")
+                                                                                            : wxT("W40k_gog.exe"));
+                }
+            }
+        }
+        catch (const CRainmanException &e)
+        {
+            ErrorBoxE(e);
+            return;
         }
     }
 
@@ -573,7 +624,7 @@ void ConstructFrame::DoNewMod()
     frmNewMod oNewMod;
     if (oNewMod.ShowModal() == wxID_NEW)
     {
-        DoLoadMod(oNewMod.GetPath());
+        DoLoadMod(oNewMod.GetPath(), oNewMod.IsDEMod() ? LM_DE : LM_Any);
     }
 }
 void ConstructFrame::OnToolMenuCommand(wxCommandEvent &event)
@@ -722,6 +773,10 @@ void ConstructFrame::SetModule(CModuleFile *pMod, const wxString &sModuleFile)
     if (pMod != 0)
     {
         m_moduleManager.SetModule(pMod, sModuleFile);
+        const wxFileName projectFile(sModuleFile);
+        GetMenuBar()->GetMenu(2)->Enable(
+            IDM_DEArchive, pMod->GetModuleType() == CModuleFile::MT_DawnOfWar && !pMod->IsFauxModule() &&
+                               wxFileName::FileExists(projectFile.GetPathWithSep() + wxT("pipeline.ini")));
         if (!m_tabManager.IsSplit())
         {
             GetMenuBar()->GetMenu(0)->Enable(wxID_CLOSE, true);
@@ -729,6 +784,7 @@ void ConstructFrame::SetModule(CModuleFile *pMod, const wxString &sModuleFile)
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDC, false);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModSS, false);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDE, false);
+            GetMenuBar()->GetMenu(0)->Enable(IDM_BrowseModsDE, false);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModCoH, false);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadSga, false);
             GetMenuBar()->GetMenu(0)->Enable(wxID_NEW, false);
@@ -754,6 +810,7 @@ void ConstructFrame::SetModule(CModuleFile *pMod, const wxString &sModuleFile)
     }
     else
     {
+        GetMenuBar()->GetMenu(2)->Enable(IDM_DEArchive, false);
         GetMenuBar()->GetMenu(4)->Enable(IDM_PlayMod, false);
 
         if (m_tabManager.IsSplit())
@@ -763,6 +820,7 @@ void ConstructFrame::SetModule(CModuleFile *pMod, const wxString &sModuleFile)
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDC, true);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModSS, true);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDE, true);
+            GetMenuBar()->GetMenu(0)->Enable(IDM_BrowseModsDE, true);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModCoH, true);
             GetMenuBar()->GetMenu(0)->Enable(IDM_LoadSga, true);
             GetMenuBar()->GetMenu(0)->Enable(wxID_NEW, true);
@@ -837,6 +895,7 @@ void ConstructFrame::DisableLoadMenuItems()
     GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDC, false);
     GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModSS, false);
     GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDE, false);
+    GetMenuBar()->GetMenu(0)->Enable(IDM_BrowseModsDE, false);
     GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModCoH, false);
     GetMenuBar()->GetMenu(0)->Enable(IDM_LoadSga, false);
     GetMenuBar()->GetMenu(0)->Enable(wxID_NEW, false);
@@ -851,6 +910,7 @@ void ConstructFrame::EnableLoadMenuItems()
         GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDC, true);
         GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModSS, true);
         GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModDE, true);
+        GetMenuBar()->GetMenu(0)->Enable(IDM_BrowseModsDE, true);
         GetMenuBar()->GetMenu(0)->Enable(IDM_LoadModCoH, true);
         GetMenuBar()->GetMenu(0)->Enable(IDM_LoadSga, true);
         GetMenuBar()->GetMenu(0)->Enable(wxID_NEW, true);
@@ -879,6 +939,105 @@ void ConstructFrame::OnOpenModDE(wxCommandEvent &event)
 {
     UNUSED(event);
     DoLoadMod(wxT(""), LM_DE);
+}
+
+void ConstructFrame::OnBrowseModsDE(wxCommandEvent &event)
+{
+    UNUSED(event);
+    if (m_moduleLoadPresenter.IsLoading())
+    {
+        return;
+    }
+
+    frmModBrowser dlg(this);
+    if (dlg.ShowModal() == wxID_OK)
+    {
+        wxString sPath = dlg.GetSelectedModulePath();
+        if (!sPath.IsEmpty())
+        {
+            DoLoadMod(sPath, LM_DE);
+        }
+    }
+}
+
+void ConstructFrame::OnConfigureDEInstall(wxCommandEvent &event)
+{
+    UNUSED(event);
+    wxString current;
+    try
+    {
+        current = ConfGetDEFolder();
+    }
+    catch (const CRainmanException &e)
+    {
+        ErrorBoxE(e);
+        return;
+    }
+    wxDirDialog dialog(this, AppStr(configure_modde_install_title),
+                       wxFileName::DirExists(current) ? current : wxString(), wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST);
+    if (dialog.ShowModal() != wxID_OK)
+    {
+        return;
+    }
+    if (!ConfIsDEInstallFolder(dialog.GetPath()))
+    {
+        wxMessageBox(AppStr(configure_modde_install_invalid), AppStr(configure_modde_install_title),
+                     wxOK | wxICON_ERROR, this);
+        return;
+    }
+    TheConfig->Write(AppStr(config_defolder), dialog.GetPath());
+    UpdateRelicToolsState();
+}
+
+void ConstructFrame::OnDEArchive(wxCommandEvent &event)
+{
+    UNUSED(event);
+    auto *pMod = GetModule();
+    if (!pMod || pMod->GetModuleType() != CModuleFile::MT_DawnOfWar || pMod->IsFauxModule())
+    {
+        return;
+    }
+
+    try
+    {
+        frmDeArchive dialog(this, GetModuleFile(), GetModuleService().GetModFolder(), ConfGetDEFolder());
+        dialog.ShowModal();
+    }
+    catch (const CRainmanException &e)
+    {
+        ErrorBoxE(e);
+    }
+}
+
+void ConstructFrame::OpenDEProjectFile(const wxString &sPath, bool bPreview)
+{
+    auto *tabs = GetTabs();
+    for (size_t i = 0; i < tabs->GetPageCount(); ++i)
+    {
+        auto *editor = dynamic_cast<frmDeFileEditor *>(tabs->GetPage(i));
+        if (editor && editor->GetPath().IsSameAs(sPath, false))
+        {
+            tabs->SetSelection(i);
+            if (!bPreview && m_tabManager.IsPreviewTab(editor))
+            {
+                m_tabManager.PinPreviewTab();
+            }
+            return;
+        }
+    }
+    try
+    {
+        auto *editor = new frmDeFileEditor(tabs, sPath);
+        m_tabManager.AddPage(editor, wxFileName(sPath).GetFullName(), true);
+        if (bPreview)
+        {
+            m_tabManager.SetPreviewPage(editor, sPath);
+        }
+    }
+    catch (const std::runtime_error &e)
+    {
+        wxMessageBox(wxString::FromUTF8(e.what()), wxT("Open DE project file"), wxOK | wxICON_ERROR, this);
+    }
 }
 
 void ConstructFrame::OnOpenModCoH(wxCommandEvent &event)
@@ -990,11 +1149,49 @@ void ConstructFrame::DoLoadMod(wxString sPath, eLoadModGames eGame)
             }
             else if (eGame == LM_DE)
             {
-                TheConfig->Write(AppStr(config_defolder), sAppFolder);
+                if (ConfIsDEInstallFolder(sAppFolder))
+                {
+                    TheConfig->Write(AppStr(config_defolder), sAppFolder);
+                }
             }
             else if (eGame == LM_DoW_WA)
             {
                 TheConfig->Write(AppStr(config_dowfolder), sAppFolder);
+            }
+        }
+
+        wxString sGameInstallPath;
+        if (eGame == LM_DE)
+        {
+            const wxString selectedFolder = wxFileName(sFilePath).GetPath();
+            if (ConfIsDEInstallFolder(selectedFolder))
+            {
+                sGameInstallPath = selectedFolder;
+                TheConfig->Write(AppStr(config_defolder), selectedFolder);
+            }
+            else
+            {
+                try
+                {
+                    sGameInstallPath = ConfGetDEFolder();
+                }
+                catch (const CRainmanException &e)
+                {
+                    ErrorBoxE(e);
+                    delete pFileDialog;
+                    return;
+                }
+                if (!ConfIsDEInstallFolder(sGameInstallPath))
+                {
+                    wxCommandEvent configureEvent;
+                    OnConfigureDEInstall(configureEvent);
+                    sGameInstallPath = TheConfig->Read(AppStr(config_defolder), wxEmptyString);
+                    if (!ConfIsDEInstallFolder(sGameInstallPath))
+                    {
+                        delete pFileDialog;
+                        return;
+                    }
+                }
             }
         }
 
@@ -1045,7 +1242,7 @@ void ConstructFrame::DoLoadMod(wxString sPath, eLoadModGames eGame)
         }
 
         // Hand off to presenter for async background loading
-        m_moduleLoadPresenter.LoadMod(sFilePath, sLocale, bIsCoH, sMyDocumentsPath);
+        m_moduleLoadPresenter.LoadMod(sFilePath, sLocale, bIsCoH, sMyDocumentsPath, sGameInstallPath);
     }
     delete pFileDialog;
 }

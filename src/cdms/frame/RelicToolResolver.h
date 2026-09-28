@@ -50,6 +50,14 @@ class RelicToolResolver
     // Returns full path if sExeName exists in sDir or sDir\ModTools, else empty
     static wxString FindToolIn(const wxString &sDir, const wxString &sExeName);
 
+    // Pipeline tools read pipeline.ini from the current working directory.
+    static wxString GetWorkingDirectory(const wxString &sToolPath, const wxString &sModuleFile);
+
+    // Modern Audio Editor takes -wkdir <project>/<ModFolder>, not just a process cwd.
+    // Throws std::invalid_argument when the selected module's ModFolder is unusable.
+    static wxString GetToolParameters(const wxString &sExeName, const wxString &sModuleFile,
+                                      const wxString &sModFolder);
+
   private:
     std::vector<ToolInfo> m_vTools;
 

@@ -42,10 +42,11 @@ class CModuleLoadPresenter
         \param sLocale          Locale string (e.g. "english").
         \param bIsCoH           true if loading a Company of Heroes module.
         \param sMyDocumentsPath  Path to My Documents\My Games\Company of Heroes (CoH only).
+        \param sGameInstallPath  Validated DoW:DE installation root, or empty for legacy loading.
         \return true if the load was started, false if a load is already running.
     */
     bool LoadMod(const wxString &sFilePath, const wxString &sLocale, bool bIsCoH,
-                 const wxString &sMyDocumentsPath = wxT(""));
+                 const wxString &sMyDocumentsPath = wxT(""), const wxString &sGameInstallPath = wxT(""));
 
     //! Load an .sga file as a faux module asynchronously.
     /*!

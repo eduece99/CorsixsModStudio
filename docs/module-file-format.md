@@ -4,6 +4,25 @@ Module files (`.module`) define a mod's structure for Dawn of War and Company of
 They declare which archives, folders, localisations, and dependencies make up a mod.
 `CModuleFile` parses these files and orchestrates resource loading.
 
+## Definitive Edition mod creation
+
+New Definitive Edition mods are created under `%APPDATA%\Relic Entertainment\Dawn of War\mods\<name>\`,
+not in the game installation. The mod's `<name>.module` and `pipeline.ini` sit alongside
+`DataGeneric`, `DataSrc`, `DataIntermediate`, and `Mod`. `Mod` contains `Data`,
+`Locale\English`, and `Data.sgaconfig`. The module's `RequiredMod` chain and the
+pipeline's project parent both follow the selected base game.
+An empty `DataGeneric\Sound\_default.rat` is included: without it, Relic's
+Audio Editor crashed when opening a newly generated DE mod.
+
+The generator uses a bundled `_default.burn` from `src/cdms/res/`.
+CMake embeds its bytes in the application, so creating a mod does not depend
+on another mod or the game installation providing burn rules. The template
+contains 14 targets covering entity blueprints, models, textures, audio, UI
+assets and other file types, with a final ignore fallback.
+`Mod\Data.sgaconfig` is also generated in code, using the documented default
+compression rules and four file/size overrides. No files are copied from
+other mods.
+
 ## Module Types
 
 | Type | Games |
@@ -104,6 +123,16 @@ Archive.2 = path/to/other
 
 Required mods and engines are themselves `CModuleFile` instances, parsed recursively with
 their own `iReloadWhat` masks.
+
+For Definitive Edition mods stored outside the game installation, call
+`SetGameInstallPath(installRoot)` after `LoadModuleFile()` and before `ReloadResources()`.
+Required modules resolve beside the current module first, then at the install root;
+each child loads its own data relative to its `.module` file. Engine data resolves at
+the install root. `pipeline.ini` is read beside the module, or from the install root
+if absent locally; its `[project:<module filename without .module>]` section selects
+`DataGeneric`, and `%app%` paths resolve at the install root. A new
+`LoadModuleFile()` call clears the install root. Without an install root, legacy
+same-directory resolution and `ModFolder` pipeline sections are retained.
 
 ## File Resolution
 

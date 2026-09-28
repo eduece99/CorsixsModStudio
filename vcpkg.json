@@ -1,7 +1,7 @@
 {
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "name": "corsix-mod-studio",
-    "version": "0.5.7",
+    "version": "0.5.8",
     "description": "Corsix's Mod Studio: Definitive Edition - Dawn of War / Company of Heroes Modding IDE",
     "dependencies": [
         "zlib",

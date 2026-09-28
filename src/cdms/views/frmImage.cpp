@@ -66,7 +66,8 @@ END_EVENT_TABLE()
 
 frmImageViewer::frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wxWindow *parent, wxWindowID id,
                                CRgtFile *pImage, bool bOwnImage, const wxPoint &pos, const wxSize &size)
-    : m_oFileParent(oFileParent), m_sFilename(std::move(sFilename)), wxWindow(parent, id, pos, size), m_presenter(*this)
+    : m_oFileParent(oFileParent), m_sFilename(std::move(sFilename)), wxWindow(parent, id, pos, size),
+      m_presenter(*this), m_taskRunner(this)
 {
     auto *pTopSizer = new wxBoxSizer(wxVERTICAL);
 
@@ -74,16 +75,7 @@ frmImageViewer::frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wx
     m_pImageBitmap = nullptr;
     m_bOwnRgt = bOwnImage;
 
-    {
-        CMemoryStore::COutStream *pTgaSpace = CMemoryStore::OpenOutputStreamExt();
-        pImage->SaveTGA(pTgaSpace);
-        wxMemoryInputStream oTgaSpace(pTgaSpace->GetData(), pTgaSpace->GetDataLength());
-        wxImage oTga(oTgaSpace, wxBITMAP_TYPE_TGA);
-        m_pImageBitmap = new wxBitmap(oTga);
-        delete pTgaSpace;
-    }
-
-    auto *pImgSizer = new wxStaticBoxSizer(wxVERTICAL, this, wxT("Current Image"));
+    m_pImgContentSizer = new wxStaticBoxSizer(wxVERTICAL, this, wxT("Current Image"));
 
     wxArrayString aFileTypes, aCompressionTypes;
 
@@ -98,16 +90,16 @@ frmImageViewer::frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wx
     aCompressionTypes.Add(wxT("DXT5 (4 bit alpha)"));
 
     wxRadioBox *pRadioBox;
-    pImgSizer->Add(m_pCurrentExt = pRadioBox =
-                       new wxRadioBox(this, -1, wxT("File"), wxDefaultPosition, wxDefaultSize, aFileTypes),
-                   0, wxEXPAND | wxALL, 0);
+    m_pImgContentSizer->Add(m_pCurrentExt = pRadioBox =
+                                new wxRadioBox(this, -1, wxT("File"), wxDefaultPosition, wxDefaultSize, aFileTypes),
+                            0, wxEXPAND | wxALL, 0);
 
     pRadioBox->SetSelection(0); // RGT
     pRadioBox->Enable(false);
 
-    pImgSizer->Add(m_pCurrentCompression = pRadioBox = new wxRadioBox(this, -1, wxT("Compression"), wxDefaultPosition,
-                                                                      wxDefaultSize, aCompressionTypes),
-                   0, wxEXPAND | wxALL, 0);
+    m_pImgContentSizer->Add(m_pCurrentCompression = pRadioBox = new wxRadioBox(
+                                this, -1, wxT("Compression"), wxDefaultPosition, wxDefaultSize, aCompressionTypes),
+                            0, wxEXPAND | wxALL, 0);
 
     switch (pImage->GetImageFormat())
     {
@@ -134,14 +126,17 @@ frmImageViewer::frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wx
     pRadioBox->Enable(false);
 
     wxCheckBox *pCheckBox;
-    pImgSizer->Add(pCheckBox = new wxCheckBox(this, -1, wxT("Mip Levels")), 0, wxEXPAND | wxALL, 3);
+    m_pImgContentSizer->Add(pCheckBox = new wxCheckBox(this, -1, wxT("Mip Levels")), 0, wxEXPAND | wxALL, 3);
 
     pCheckBox->SetValue(pImage->GetProperty(CRgtFile::IP_MipLevelCount) > 1);
     pCheckBox->Enable(false);
 
-    pImgSizer->Add(new wxMyScrolledWindow(this, m_pImageBitmap), 1, wxEXPAND | wxALL, 0);
+    // Placeholder while image decodes on background thread
+    m_pLoadingLabel = new wxStaticText(this, wxID_ANY, wxT("Loading image..."), wxDefaultPosition, wxDefaultSize,
+                                       wxALIGN_CENTER_HORIZONTAL);
+    m_pImgContentSizer->Add(m_pLoadingLabel, 1, wxALIGN_CENTER | wxALL, 20);
 
-    pTopSizer->Add(pImgSizer, 1, wxEXPAND | wxALL, 3);
+    pTopSizer->Add(m_pImgContentSizer, 1, wxEXPAND | wxALL, 3);
 
     auto *pSaveSizer = new wxStaticBoxSizer(wxVERTICAL, this, wxT("Save Copy"));
 
@@ -177,6 +172,43 @@ frmImageViewer::frmImageViewer(wxTreeItemId &oFileParent, wxString sFilename, wx
 
     SetSizer(pTopSizer);
     pTopSizer->SetSizeHints(this);
+
+    // Decode image on background thread (wxImage is thread-safe, wxBitmap is not)
+    auto *pRgt = pImage;
+    m_taskRunner.RunAsync<wxImage>(
+        [pRgt](CProgressChannel &, CCancellationToken &) -> wxImage
+        {
+            CMemoryStore::COutStream *pTgaSpace = CMemoryStore::OpenOutputStreamExt();
+            pRgt->SaveTGA(pTgaSpace);
+            wxMemoryInputStream oTgaSpace(pTgaSpace->GetData(), pTgaSpace->GetDataLength());
+            wxImage oTga(oTgaSpace, wxBITMAP_TYPE_TGA);
+            delete pTgaSpace;
+            return oTga;
+        },
+        [](const std::string &) {},
+        [this](Result<wxImage> result)
+        {
+            if (!result.ok())
+            {
+                if (m_pLoadingLabel)
+                {
+                    m_pLoadingLabel->SetLabel(wxT("Failed to load image"));
+                }
+                return;
+            }
+
+            m_pImageBitmap = new wxBitmap(std::move(result).value());
+
+            // Swap placeholder for scrolled image window
+            if (m_pLoadingLabel)
+            {
+                m_pImgContentSizer->Detach(m_pLoadingLabel);
+                m_pLoadingLabel->Destroy();
+                m_pLoadingLabel = nullptr;
+            }
+            m_pImgContentSizer->Add(new wxMyScrolledWindow(this, m_pImageBitmap), 1, wxEXPAND | wxALL, 0);
+            Layout();
+        });
 }
 
 void frmImageViewer::SetIsTga(bool bOnlyRGB)

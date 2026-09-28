@@ -303,7 +303,7 @@ void frmFileSelector::MakeChildren(const wxTreeItemId &parent)
                     {
                         iImg = 0;
                     }
-                    else if (sExtension.IsSameAs(wxT(".lua"), false))
+                    else if (sExtension.IsSameAs(wxT(".lua"), false) || sExtension.IsSameAs(wxT(".burn"), false))
                     {
                         iImg = 1;
                     }

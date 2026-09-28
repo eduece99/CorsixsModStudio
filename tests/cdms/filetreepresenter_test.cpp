@@ -31,6 +31,12 @@ TEST(CFileTreePresenter, ClassifyFileIcon_Lua)
     EXPECT_EQ(CFileTreePresenter::ClassifyFileIcon(wxT("init.lua")), CFileTreePresenter::Icon_Lua);
 }
 
+TEST(CFileTreePresenter, ClassifyFileIcon_Burn)
+{
+    EXPECT_EQ(CFileTreePresenter::ClassifyFileIcon(wxT("_default.BURN")), CFileTreePresenter::Icon_Lua);
+    EXPECT_EQ(CFileTreePresenter::ClassifyFileIcon(wxT("Data.sgaconfig")), CFileTreePresenter::Icon_Unknown);
+}
+
 TEST(CFileTreePresenter, ClassifyFileIcon_Nil)
 {
     EXPECT_EQ(CFileTreePresenter::ClassifyFileIcon(wxT("data.nil")), CFileTreePresenter::Icon_Nil);

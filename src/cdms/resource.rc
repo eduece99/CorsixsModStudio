@@ -37,8 +37,8 @@ APPICON                 ICON                    "res\\icon.ico"
 // Version
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,5,7,0
- PRODUCTVERSION 0,5,7,0
+ FILEVERSION 0,5,8,0
+ PRODUCTVERSION 0,5,8,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x3L
@@ -55,12 +55,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "www.corsix.org"
             VALUE "FileDescription", "Corsix's Mod Studio: Definitive Edition"
-            VALUE "FileVersion", "0, 5, 7, 0"
+            VALUE "FileVersion", "0, 5, 8, 0"
             VALUE "InternalName", "CDMS"
             VALUE "LegalCopyright", "Licensed under the GNU GPL"
             VALUE "OriginalFilename", "CorsixModStudio.exe"
             VALUE "ProductName", "Corsix's Mod Studio: Definitive Edition"
-            VALUE "ProductVersion", "0, 5, 7, 0"
+            VALUE "ProductVersion", "0, 5, 8, 0"
         END
     END
     BLOCK "VarFileInfo"

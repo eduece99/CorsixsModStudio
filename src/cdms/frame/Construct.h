@@ -79,6 +79,10 @@ class ConstructFrame : public wxFrame, public IMainFrameView
     void OnOpenModDC(wxCommandEvent &event);
     void OnOpenModSS(wxCommandEvent &event);
     void OnOpenModDE(wxCommandEvent &event);
+    void OnBrowseModsDE(wxCommandEvent &event);
+    void OnConfigureDEInstall(wxCommandEvent &event);
+    void OnDEArchive(wxCommandEvent &event);
+    void OpenDEProjectFile(const wxString &sPath, bool bPreview = false);
     void OnOpenModCoH(wxCommandEvent &event);
     void OnOpenModOF(wxCommandEvent &event);
     void OnOpenSga(wxCommandEvent &event);
@@ -178,12 +182,15 @@ enum
     IDM_LoadModDC,
     IDM_LoadModSS,
     IDM_LoadModDE,
+    IDM_BrowseModsDE,
+    IDM_ConfigureDEInstall,
     IDM_LoadModCoH,
     IDM_LoadSga,
     IDM_Quit,
     // Mod Menu
     IDM_Settings,
     IDM_Tools,
+    IDM_DEArchive,
     // Mod.Tools Menu
     IDM_ModToolBase,
     IDM_ModToolLast = IDM_ModToolBase + 99, // Reserve 100 dynamic tool slots

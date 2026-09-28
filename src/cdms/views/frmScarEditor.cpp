@@ -461,47 +461,52 @@ void frmScarEditor::Load(IFileStore::IStream *pFile)
         return;
     }
 
-    unsigned char *sBuffer = new unsigned char[iLength];
+    auto sBuffer = std::make_unique<unsigned char[]>(iLength);
     try
     {
-        pFile->VRead(iLength, 1, sBuffer);
+        pFile->VRead(iLength, 1, sBuffer.get());
     }
     catch (const CRainmanException &e)
     {
         ErrorBoxE(e);
-        delete[] sBuffer;
         return;
     }
-    wchar_t *pBuffer = new wchar_t[iLength + 1];
+
+    // Convert to wxString (fast linear scan)
+    wxString sContent(static_cast<size_t>(iLength), wxT('\0'));
     for (long i = 0; i < iLength; ++i)
     {
-        pBuffer[i] = sBuffer[i];
+        sContent[i] = static_cast<wchar_t>(sBuffer[i]);
     }
-    pBuffer[iLength] = 0;
-    m_pSTC->AddText(pBuffer);
-    delete[] pBuffer;
-    delete[] sBuffer;
-    m_bNeedsSaving = false;
-    m_pSTC->EmptyUndoBuffer();
-    m_pSTC->SetSavePoint();
 
-    m_pFunctionDropdown->Clear();
-    FillFunctionDrop(wxString());
+    if (m_sFilename.Lower().EndsWith(wxT(".burn")))
+    {
+        sContent.Replace(wxT("\r\r\n"), wxT("\r\n"));
+    }
 
-    // Now that the text is loaded, open the document with the LSP
-    if (!m_bLspOpen)
-    {
-        LspOpenDocument();
-    }
-    else
-    {
-        LspSyncDocument();
-    }
-    // Note: m_bLspNeedsSync may be true here (set by OnModified during
-    // AddText). That's intentional — LuaLS requires a didChange to
-    // publish diagnostics. The else-if in OnLspTimer ensures the
-    // didChange fires on the next tick (100ms after didOpen), not in
-    // the same tick.
+    // Defer text insertion so the tab appears immediately
+    CallAfter(
+        [this, sContent = std::move(sContent)]()
+        {
+            m_pSTC->Freeze();
+            m_pSTC->AddText(sContent);
+            m_pSTC->Thaw();
+            m_bNeedsSaving = false;
+            m_pSTC->EmptyUndoBuffer();
+            m_pSTC->SetSavePoint();
+
+            m_pFunctionDropdown->Clear();
+            FillFunctionDrop(wxString());
+
+            if (!m_bLspOpen)
+            {
+                LspOpenDocument();
+            }
+            else
+            {
+                LspSyncDocument();
+            }
+        });
 }
 
 void frmScarEditor::OnStyleNeeded(wxStyledTextEvent &event)
@@ -674,7 +679,6 @@ frmScarEditor::frmScarEditor(const wxTreeItemId &oFileParent, wxString sFilename
     pTopSizer->Add(m_pFunctionDropdown =
                        new wxChoice(this, IDC_FunctionDrop, wxDefaultPosition, wxDefaultSize, lstFuncDrop),
                    0, wxEXPAND | wxALL, 3);
-
     auto oSaveBundle = wxArtProvider::GetBitmapBundle(wxART_FILE_SAVE, wxART_TOOLBAR, wxSize(32, 32));
     auto oCheckBundle = wxBitmapBundle::FromSVG(cdms::icons::kCheck, wxSize(32, 32));
     pToolbar->SetToolBitmapSize(wxSize(32, 32));

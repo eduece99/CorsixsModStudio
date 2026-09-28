@@ -32,8 +32,13 @@
 #include "common/Utility.h"
 #include "common/ThemeColours.h"
 #include "presenters/CFileTreePresenter.h"
+#include "tools/CDeArchiveTool.h"
 #include "res/Icons.h"
 #include <wx/artprov.h>
+#include <wx/filename.h>
+#include <filesystem>
+#include <map>
+#include <wx/wupdlock.h>
 #include <zlib.h>
 extern "C"
 {
@@ -109,6 +114,8 @@ CFilesTreeItemData::CFilesTreeItemData(IDirectoryTraverser::IIterator *pItr, IDi
         IGNORE_EXCEPTIONS
     }
 }
+
+CFilesTreeItemData::CFilesTreeItemData(const wxString &sPath) : sMod(nullptr), sSource(nullptr), sPhysicalPath(sPath) {}
 
 CFilesTreeItemData::~CFilesTreeItemData() = default;
 
@@ -241,6 +248,20 @@ void CLuaAction::VHandle(wxString sFile, wxTreeItemId &oParent, wxTreeItemId &oF
 #include "actions/CScarAction.h"
 #include "actions/CNisAction.h"
 #include "actions/CAiAction.h"
+
+class CBurnViewAction : public CTextViewAction
+{
+  public:
+    wxString VGetExt() const override { return wxT("burn"); }
+    wxString VGetAction() const override { return wxT("Edit burn rules"); }
+};
+
+class CTextPreviewAction : public CTextViewAction
+{
+  public:
+    wxString VGetExt() const override { return wxT("txt"); }
+    wxString VGetAction() const override { return CTextViewAction::VGetAction(); }
+};
 
 // Proper stuff
 
@@ -446,7 +467,12 @@ void frmFiles::OnNodeTooltip(wxTreeEvent &event)
     CFilesTreeItemData *pData = (CFilesTreeItemData *)m_pTree->GetItemData(event.GetItem());
     if (pData)
     {
-        if (pData->sMod && pData->sSource)
+        if (!pData->sPhysicalPath.empty())
+        {
+            event.SetToolTip(pData->sPhysicalPath);
+            TheConstruct->GetStatusBar()->SetStatusText(pData->sPhysicalPath);
+        }
+        else if (pData->sMod && pData->sSource)
         {
             wxString sTooltip;
             wxTreeItemId oID = event.GetItem();
@@ -470,6 +496,11 @@ void frmFiles::OnNodeTooltip(wxTreeEvent &event)
 void frmFiles::OnNodeActivate(wxTreeEvent &event)
 {
     CFilesTreeItemData *pData = (CFilesTreeItemData *)m_pTree->GetItemData(event.GetItem());
+    if (pData && !pData->sPhysicalPath.empty())
+    {
+        TheConstruct->OpenDEProjectFile(pData->sPhysicalPath);
+        return;
+    }
     if (pData && pData->sMod && pData->sSource)
     {
         wxString sPath, sExt;
@@ -502,6 +533,7 @@ void frmFiles::OnNodeActivate(wxTreeEvent &event)
             {
                 try
                 {
+                    wxWindowUpdateLocker lock(TheConstruct->GetTabs());
                     (*itr)->VHandle(sPath, oParent, oCurrent);
                 }
                 catch (const CRainmanException &e)
@@ -520,6 +552,16 @@ void frmFiles::OnNodeSelected(wxTreeEvent &event)
 {
     wxTreeItemId oItem = event.GetItem();
     auto *pData = static_cast<CFilesTreeItemData *>(m_pTree->GetItemData(oItem));
+    if (pData && !pData->sPhysicalPath.empty())
+    {
+        bool previewEnabled = true;
+        TheConfig->Read(AppStr(config_preview_enabled), &previewEnabled, true);
+        if (previewEnabled)
+        {
+            TheConstruct->OpenDEProjectFile(pData->sPhysicalPath, true);
+        }
+        return;
+    }
     if (!pData || !pData->sMod || !pData->sSource)
     {
         // Toggle expand/collapse for folder items on click
@@ -566,6 +608,7 @@ void frmFiles::OnNodeSelected(wxTreeEvent &event)
         {
             try
             {
+                wxWindowUpdateLocker lock(tabMgr.GetTabs());
                 tabMgr.ClosePreviewTab();
                 size_t countBefore = tabMgr.GetTabs()->GetPageCount();
                 oCurrent = event.GetItem();
@@ -618,6 +661,14 @@ void frmFiles::OnNodeRightClick(wxTreeEvent &event)
     wxMenu *pPopup = new wxMenu;
 
     sPath.Remove(0, 1);
+    if (pData && !pData->sPhysicalPath.empty())
+    {
+        m_sPopupFileName = pData->sPhysicalPath;
+        pPopup->Append(wxID_HIGHEST + 1600, wxT("Open in editor"));
+        PopupMenu(pPopup);
+        delete pPopup;
+        return;
+    }
     if (pData && pData->sSource)
     {
         sExt = sPath.AfterLast('.');
@@ -655,10 +706,16 @@ void frmFiles::OnNodeRightClick(wxTreeEvent &event)
 
 void frmFiles::OnMenu(wxCommandEvent &event)
 {
+    if (event.GetId() == wxID_HIGHEST + 1600)
+    {
+        TheConstruct->OpenDEProjectFile(m_sPopupFileName);
+        return;
+    }
     if (event.GetId() >= (wxID_HIGHEST + 1337))
     {
         try
         {
+            wxWindowUpdateLocker lock(TheConstruct->GetTabs());
             if (m_bPopupIsFolder)
             {
                 m_vFolderHandlers[event.GetId() - (wxID_HIGHEST + 1337)]->VHandle(m_sPopupFileName, m_oPopupTreeParent,
@@ -780,6 +837,8 @@ frmFiles::frmFiles(wxWindow *parent, wxWindowID id, const wxPoint &pos, const wx
     AddHandler(new CNilAction);
     AddHandler(new CLuaAction);
     AddHandler(new CLuaBurnAction);
+    AddHandler(new CBurnViewAction);
+    AddHandler(new CTextPreviewAction);
     AddHandler(new CRGDAction);
     AddHandler(new CRgdToLuaDumpAction);
     AddHandler(new CScarAction);
@@ -847,6 +906,49 @@ bool frmFiles::FillFromIDirectoryTraverser(IDirectoryTraverser *pTraverser)
             // Populate the first level of children under each entry point
             _FillOneLevelFromIterator(oEntry, pEntry);
             delete pEntry;
+        }
+    }
+    const wxString projectRoot = wxFileName(TheConstruct->GetModuleFile()).GetPath();
+    if (!projectRoot.empty() && wxFileName::FileExists(wxFileName(projectRoot, wxT("pipeline.ini")).GetFullPath()))
+    {
+        const auto configs = CDeArchiveTool::FindFiles(projectRoot, CDeArchiveTool::EditorType::SgaConfig);
+        const auto pipelines = CDeArchiveTool::FindFiles(projectRoot, CDeArchiveTool::EditorType::Pipeline);
+        if (!configs.empty() || !pipelines.empty())
+        {
+            const auto projectNode = m_pTree->AppendItem(oRoot, wxT("Project Files"), 7);
+            std::map<std::filesystem::path, wxTreeItemId> directories;
+            const std::filesystem::path root(projectRoot.ToStdWstring());
+            directories.emplace(std::filesystem::path{}, projectNode);
+            auto addProjectFile = [&](const wxString &path)
+            {
+                const auto relative = std::filesystem::path(path.ToStdWstring()).lexically_relative(root);
+                auto parent = projectNode;
+                std::filesystem::path directory;
+                for (const auto &part : relative.parent_path())
+                {
+                    directory /= part;
+                    const auto [it, inserted] = directories.try_emplace(directory);
+                    if (inserted)
+                    {
+                        it->second =
+                            m_pTree->AppendItem(parent, wxString(part.wstring()), CFileTreePresenter::Icon_FolderClosed,
+                                                CFileTreePresenter::Icon_FolderOpen);
+                        m_pTree->SetItemImage(it->second, CFileTreePresenter::Icon_FolderOpen, wxTreeItemIcon_Expanded);
+                    }
+                    parent = it->second;
+                }
+                m_pTree->AppendItem(parent, wxString(relative.filename().wstring()), CFileTreePresenter::Icon_Unknown,
+                                    CFileTreePresenter::Icon_Unknown, new CFilesTreeItemData(path));
+            };
+            for (const auto &path : pipelines)
+            {
+                addProjectFile(path);
+            }
+            for (const auto &path : configs)
+            {
+                addProjectFile(path);
+            }
+            m_pTree->Expand(projectNode);
         }
     }
     m_pTree->Thaw();

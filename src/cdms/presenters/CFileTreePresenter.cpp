@@ -38,6 +38,10 @@ int CFileTreePresenter::ClassifyFileIcon(const wxString &sFileName)
     {
         return Icon_Lua;
     }
+    if (sExt.IsSameAs(wxT(".burn"), false))
+    {
+        return Icon_Lua;
+    }
     if (sExt.IsSameAs(wxT(".nil"), false))
     {
         return Icon_Nil;

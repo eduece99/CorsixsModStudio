@@ -12,6 +12,7 @@ add_executable(rainman_tests
     ucsfile_test.cpp
     chunkyfile_test.cpp
     modulefile_test.cpp
+    dowde_module_loading_test.cpp
     rgdhashtable_test.cpp
     inherittable_test.cpp
     internal_util_test.cpp

@@ -31,6 +31,9 @@ void MenuController::Build(wxFrame *pFrame, ToolRegistry &registry, RelicToolRes
     auto *pMenu_File = new wxMenu;
     pMenu_File->Append(wxID_NEW, AppStr(new_mod_menu), AppStr(new_mod));
     pMenu_File->Append(IDM_LoadModDE, AppStr(open_modde_menu), AppStr(open_modde_help));
+    pMenu_File->Append(IDM_BrowseModsDE, AppStr(browse_modde_menu), AppStr(browse_modde_help));
+    pMenu_File->Append(IDM_ConfigureDEInstall, AppStr(configure_modde_install_menu),
+                       AppStr(configure_modde_install_help));
     pMenu_File->Append(IDM_LoadModSS, AppStr(open_modss_menu), AppStr(open_modss_help));
     pMenu_File->Append(IDM_LoadSga, AppStr(open_sga_menu), AppStr(open_sga_help));
     pMenu_File->AppendSeparator();
@@ -86,6 +89,8 @@ void MenuController::Build(wxFrame *pFrame, ToolRegistry &registry, RelicToolRes
     // Mod menu
     auto *pMenu_Mod = new wxMenu;
     pMenu_Mod->Append(wxID_PROPERTIES, AppStr(mod_properties_menu), AppStr(mod_properties_help));
+    pMenu_Mod->Append(IDM_DEArchive, AppStr(modde_archive_menu), AppStr(modde_archive_help));
+    pMenu_Mod->Enable(IDM_DEArchive, false);
     pMenu_Mod->AppendSeparator();
     for (size_t t = 0; t < registry.GetCount(); ++t)
     {
