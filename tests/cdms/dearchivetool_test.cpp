@@ -23,8 +23,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <wx/filename.h>
 #include <wx/init.h>
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <process.h>
 #include <windows.h>
 
 namespace
@@ -35,11 +37,11 @@ class CDeArchiveToolTest : public ::testing::Test
     void SetUp() override
     {
         ASSERT_TRUE(m_initializer.IsOk());
-        m_sRoot = wxFileName::CreateTempFileName(wxT("cdms-de-archive"));
-        ASSERT_FALSE(m_sRoot.empty());
-        ASSERT_TRUE(wxRemoveFile(m_sRoot));
-        ASSERT_TRUE(wxFileName::Mkdir(m_sRoot, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-        m_sRoot = wxString(std::filesystem::canonical(std::filesystem::path(m_sRoot.ToStdWstring())).wstring());
+        const auto root = std::filesystem::temp_directory_path() /
+                          ("cdms_de_archive_" + std::to_string(_getpid()) + "_" +
+                           std::to_string(reinterpret_cast<std::uintptr_t>(this)));
+        ASSERT_TRUE(std::filesystem::create_directory(root));
+        m_sRoot = wxString(std::filesystem::canonical(root).wstring());
         ASSERT_TRUE(wxFileName::Mkdir(m_sRoot + wxT("\\My Mod"), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
         m_sFolder = m_sRoot + wxT("\\My Mod");
         m_sConfig = m_sFolder + wxT("\\Data.sgaconfig");
