@@ -108,37 +108,22 @@ See [`docs/lua-language-server-integration.md`](docs/lua-language-server-integra
 
 ### Definitive Edition mod workflow
 
-Use **File → Set DoW:DE Game Folder** to select the installation containing
-`DoWDE.module` and `W40k.exe` (or GoG's `W40k_gog.exe`).
-This setting is independent of the user-mod folder; opening a mod in AppData does not
-change it. Use **File → Browse DE Mods** to find existing user mods, or **File → Open
-DoW:DE Mod** to select a `.module` file directly (including install-folder mods).
-**File → New Mod → Dawn of War: Definitive Edition** creates a modern project in
-AppData with `pipeline.ini`, `DataGeneric`, `DataSrc`, `DataIntermediate`, `Mod\Data`,
-and `Mod\Data.sgaconfig`. It also creates the empty
-`DataGeneric\Sound\_default.rat` required for Audio Editor to open the
-project. The executable includes a bundled `_default.burn` template with 14 targets for entity
-blueprints, models, textures, audio, UI assets and other file types, ending
-with an ignore fallback. New mods also get an archive config created
-from the documented default compression rules, independently of existing mods.
-Once a modern mod is loaded, **Project Files** in the Files tree lists
-`pipeline.ini` at the project root and `.sgaconfig` files in their physical
-folder hierarchy, separately from the game-data VFS. `.burn` rules are already
-visible under **Generic**.
-Open project configs in normal editor tabs with a visible **Save** button or
-Ctrl+S; selecting a `.txt` file in the game-data tree previews it using the
-same **View as text file** action available on right-click. Reload the mod
-after saving `pipeline.ini` for its changes to affect loaded resources.
-**Mod → Create DoW:DE Archive**
-lets you choose a `.sgaconfig`, source directory and output `.sga` to run the
-installed Relic `Archive.exe`. The source directory must
-match the config's `relativeroot`; archive output must be outside the source
-directory. The existing Corsix SGA packer remains available for older workflows.
-
-Relic tools launched for a project with `pipeline.ini` use that project's folder
-as their working directory; otherwise they use the tool's folder. For a DE
-project, Audio Editor also receives `-wkdir` pointing to the module's `ModFolder`
-directory, matching Mod Assistant's launch parameters.
+1. **Choose your game installation:** Select **File → Set DoW:DE Game Folder**
+   and pick the folder containing `DoWDE.module` and `W40k.exe` (or
+   `W40k_gog.exe` for GoG). Opening a mod won't change this setting.
+2. **Open or create a mod:** Use **File → Browse DE Mods** for mods in AppData,
+   **File → Open DoW:DE Mod** to open a `.module` file anywhere, or
+   **File → New Mod → Dawn of War: Definitive Edition** to create a mod in
+   AppData. New mods include the project folders and configuration files needed
+   for the DE pipeline and Audio Editor.
+3. **Edit your project:** Find `pipeline.ini` and `.sgaconfig` files under
+   **Project Files** in the Files tree; `.burn` rules appear under **Generic**.
+   Open a config to edit it, then use **Save** or Ctrl+S. Reload the mod after
+   changing `pipeline.ini` so the changes take effect.
+4. **Create an archive (optional):** Choose **Mod → Create DoW:DE Archive**
+   to run the installed Relic `Archive.exe`. Select a `.sgaconfig`, a source
+   folder matching its `relativeroot`, and an output `.sga` outside that source
+   folder. The Corsix SGA packer is still available for older mods.
 
 ## Building
 
