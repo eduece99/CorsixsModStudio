@@ -25,6 +25,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <windows.h>
 
 namespace
 {
@@ -37,19 +38,20 @@ class CDeArchiveToolTest : public ::testing::Test
         m_sRoot = wxFileName::CreateTempFileName(wxT("cdms-de-archive"));
         ASSERT_FALSE(m_sRoot.empty());
         ASSERT_TRUE(wxRemoveFile(m_sRoot));
+        ASSERT_TRUE(wxFileName::Mkdir(m_sRoot, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
+        m_sRoot = wxString(std::filesystem::canonical(std::filesystem::path(m_sRoot.ToStdWstring())).wstring());
         ASSERT_TRUE(wxFileName::Mkdir(m_sRoot + wxT("\\My Mod"), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
         m_sFolder = m_sRoot + wxT("\\My Mod");
         m_sConfig = m_sFolder + wxT("\\Data.sgaconfig");
         m_sSource = m_sFolder + wxT("\\Data");
         ASSERT_TRUE(wxFileName::Mkdir(m_sSource, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
         m_sOutput = m_sFolder + wxT("\\Data.sga");
-        m_sExecutable = m_sRoot + wxT("\\Archive.exe");
+        m_sExecutable = wxString(std::filesystem::canonical(std::filesystem::path(DE_ARCHIVE_STUB_PATH)).wstring());
         wxFile oConfig(m_sConfig, wxFile::write);
         ASSERT_TRUE(oConfig.IsOpened());
         ASSERT_TRUE(oConfig.Write("Archive\nTOCStart alias=\"Data\" relativeroot=\"Data\"\n"
                                   "FileSettingsStart defcompression=\"1\"\nFileSettingsEnd\nTOCEnd\n"));
         oConfig.Close();
-        ASSERT_TRUE(wxCopyFile(wxString::FromUTF8(DE_ARCHIVE_STUB_PATH), m_sExecutable));
     }
 
     void TearDown() override
@@ -262,6 +264,24 @@ TEST_F(CDeArchiveToolTest, RejectsMissingOutputFolderAndNonSgaOutput)
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
                                          m_sSource + wxT("\\inside.sga"), vArgs, sError));
     EXPECT_NE(sError.Find(wxT("outside the source")), wxNOT_FOUND);
+}
+
+TEST_F(CDeArchiveToolTest, RejectsOutputInsideSourceWithShortPathAlias)
+{
+    std::wstring shortRoot(32768, L'\0');
+    const DWORD length = GetShortPathNameW(m_sRoot.wc_str(), shortRoot.data(),
+                                           static_cast<DWORD>(shortRoot.size()));
+    if (length == 0 || length >= shortRoot.size())
+        GTEST_SKIP() << "Short path aliases are unavailable on this volume";
+    shortRoot.resize(length);
+    const wxString output = wxString(shortRoot) + wxT("\\My Mod\\Data\\inside.sga");
+    if (output.IsSameAs(m_sSource + wxT("\\inside.sga"), false))
+        GTEST_SKIP() << "No distinct short path alias was produced";
+
+    std::vector<wxString> args;
+    wxString error;
+    EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource, output, args, error));
+    EXPECT_NE(error.Find(wxT("outside the source")), wxNOT_FOUND);
 }
 
 TEST_F(CDeArchiveToolTest, ResolvesNestedRelativeRootAgainstSelectedSource)

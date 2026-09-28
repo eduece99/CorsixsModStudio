@@ -143,6 +143,41 @@ bool CDeArchiveTool::Prepare(const wxString &sExecutable, const wxString &sConfi
     oSource.Normalize();
     oConfig.Normalize();
     oOutput.Normalize();
+    const auto canonicalPath = [&sError](const wxString &sPath)
+    {
+        std::error_code error;
+        const auto path = std::filesystem::canonical(std::filesystem::path(sPath.ToStdWstring()), error);
+        if (error)
+        {
+            sError = wxT("Cannot resolve archive path: ") + sPath + wxT(" (") + wxString::FromUTF8(error.message()) +
+                     wxT(")");
+        }
+        return error ? wxString{} : wxString(path.wstring());
+    };
+    const wxString sCanonicalExecutable = canonicalPath(oExecutable.GetFullPath());
+    if (!sError.empty())
+    {
+        return false;
+    }
+    const wxString sCanonicalSource = canonicalPath(oSource.GetPath());
+    if (!sError.empty())
+    {
+        return false;
+    }
+    const wxString sCanonicalConfig = canonicalPath(oConfig.GetFullPath());
+    if (!sError.empty())
+    {
+        return false;
+    }
+    const wxString sCanonicalOutputFolder = canonicalPath(oOutput.GetPath());
+    if (!sError.empty())
+    {
+        return false;
+    }
+    oExecutable.Assign(sCanonicalExecutable);
+    oSource = wxFileName::DirName(sCanonicalSource);
+    oConfig.Assign(sCanonicalConfig);
+    oOutput.Assign(wxFileName(sCanonicalOutputFolder, oOutput.GetFullName()).GetFullPath());
     if (oOutput.GetFullPath().IsSameAs(oConfig.GetFullPath(), false))
     {
         sError = wxT("The archive output must not replace the configuration file.");
