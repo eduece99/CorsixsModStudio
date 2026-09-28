@@ -186,6 +186,11 @@ cmake --build --preset tidy-debug
 - **wxWidgets 3.x** — GUI framework
 - **spdlog** — structured logging
 
+CI and Release cache vcpkg binary packages with GitHub Actions. The first run
+builds dependencies from source; later runs restore matching packages. The
+cache key includes `vcpkg.json` and `triplets/`; bump the cache key version in
+both workflows if the Windows compiler or runner image changes.
+
 ## Key Technical Decisions
 
 ### Lua Strategy
