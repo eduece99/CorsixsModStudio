@@ -479,6 +479,11 @@ void frmScarEditor::Load(IFileStore::IStream *pFile)
         sContent[i] = static_cast<wchar_t>(sBuffer[i]);
     }
 
+    if (m_sFilename.Lower().EndsWith(wxT(".burn")))
+    {
+        sContent.Replace(wxT("\r\r\n"), wxT("\r\n"));
+    }
+
     // Defer text insertion so the tab appears immediately
     CallAfter(
         [this, sContent = std::move(sContent)]()
@@ -674,7 +679,6 @@ frmScarEditor::frmScarEditor(const wxTreeItemId &oFileParent, wxString sFilename
     pTopSizer->Add(m_pFunctionDropdown =
                        new wxChoice(this, IDC_FunctionDrop, wxDefaultPosition, wxDefaultSize, lstFuncDrop),
                    0, wxEXPAND | wxALL, 3);
-
     auto oSaveBundle = wxArtProvider::GetBitmapBundle(wxART_FILE_SAVE, wxART_TOOLBAR, wxSize(32, 32));
     auto oCheckBundle = wxBitmapBundle::FromSVG(cdms::icons::kCheck, wxSize(32, 32));
     pToolbar->SetToolBitmapSize(wxSize(32, 32));

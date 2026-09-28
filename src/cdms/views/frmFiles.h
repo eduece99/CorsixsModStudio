@@ -51,11 +51,13 @@ class CFilesTreeItemData : public wxTreeItemData
 
     //! Construct a lazy directory node with a deferred sub-iterator
     CFilesTreeItemData(IDirectoryTraverser::IIterator *pItr, IDirectoryTraverser::IIterator *pSubDirItr);
+    explicit CFilesTreeItemData(const wxString &sPath);
 
     ~CFilesTreeItemData();
 
     const char *sMod;
     const char *sSource;
+    wxString sPhysicalPath;
 
     //! Sub-directory iterator for lazy child population; owned by this object
     std::unique_ptr<IDirectoryTraverser::IIterator> pToFillWith;

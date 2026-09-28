@@ -98,6 +98,9 @@ class RAINMAN_API CModuleFile : public IFileStore, public IDirectoryTraverser
     void SetMapPackRootFolder(const wchar_t *sFolder);
     const wchar_t *GetMapPackRootFolder() const;
     const char *GetApplicationPath() const;
+    //! Configure a separate install root for DoW dependencies and Engine. Call after LoadModuleFile().
+    //! nullptr or an empty string restores legacy same-directory resolution.
+    void SetGameInstallPath(const char *sPath);
 
     // Get / Set mod directives
 
@@ -318,6 +321,7 @@ class RAINMAN_API CModuleFile : public IFileStore, public IDirectoryTraverser
     eModuleType m_eModuleType;
     std::string m_sLocale; // This is NOT cleaned by _Clean()
     std::string m_sApplicationPath;
+    std::string m_sGameInstallPath; // Cleared by _Clean(); child modules inherit this during resource loading.
     std::string m_sFilename;
     std::string m_sFileMapName;
     CModuleFile *m_pParentModule;

@@ -25,6 +25,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <shlobj.h>
 #endif
 #include <cstring>
+#include <filesystem>
+#include <memory>
+#include <system_error>
 #include "rainman/core/memdebug.h"
 #include "rainman/core/Exception.h"
 
@@ -323,31 +326,55 @@ RAINMAN_API char *Rainman_GetDEModsPath()
         Returns %APPDATA%\Relic Entertainment\Dawn of War\mods
         Creates the directory tree if it does not already exist.
     */
-    char *sModsPath = CHECK_MEM(new char[MAX_PATH + 1]);
-
 #ifndef RAINMAN_GNUC
-    char sAppData[MAX_PATH + 1];
-    if (SHGetFolderPathA(nullptr, CSIDL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, sAppData) != S_OK)
+    PWSTR sAppData = nullptr;
+    const HRESULT result = SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &sAppData);
+    if (FAILED(result) || sAppData == nullptr)
     {
-        delete[] sModsPath;
-        QUICK_THROW("Failed to get APPDATA folder path");
+        throw CRainmanException(nullptr, __FILE__, __LINE__, "Failed to get APPDATA folder path (HRESULT 0x%08lX)",
+                                static_cast<unsigned long>(result));
+    }
+    std::unique_ptr<wchar_t, decltype(&CoTaskMemFree)> appData(sAppData, &CoTaskMemFree);
+    const auto modsPath = std::filesystem::path(appData.get()) / L"Relic Entertainment" / L"Dawn of War" / L"mods";
+
+    std::error_code ec;
+    std::filesystem::create_directories(modsPath, ec);
+    if (ec)
+    {
+        throw CRainmanException(nullptr, __FILE__, __LINE__, "Cannot create Dawn of War mods folder: %s",
+                                ec.message().c_str());
     }
 
-    snprintf(sModsPath, MAX_PATH + 1, "%s\\Relic Entertainment\\Dawn of War\\mods", sAppData);
-
-    // Create each level of the directory tree if it doesn't exist
-    char sPartial[MAX_PATH + 1];
-    snprintf(sPartial, sizeof(sPartial), "%s\\Relic Entertainment", sAppData);
-    CreateDirectoryA(sPartial, nullptr);
-    snprintf(sPartial, sizeof(sPartial), "%s\\Relic Entertainment\\Dawn of War", sAppData);
-    CreateDirectoryA(sPartial, nullptr);
-    CreateDirectoryA(sModsPath, nullptr);
+    // The public char* API is consumed by ANSI file operations; reject a lossy conversion
+    // rather than returning a path that points to a different directory.
+    const std::wstring sWidePath = modsPath.wstring();
+    const UINT codePage = GetACP();
+    const DWORD flags = codePage == CP_UTF8 ? WC_ERR_INVALID_CHARS : WC_NO_BEST_FIT_CHARS;
+    BOOL bUsedDefaultChar = FALSE;
+    const int iBytes = WideCharToMultiByte(codePage, flags, sWidePath.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (!iBytes)
+    {
+        QUICK_THROW("Cannot convert Dawn of War mods folder path to the Windows code page");
+    }
+    auto sModsPath = std::make_unique<char[]>(iBytes);
+    if (!WideCharToMultiByte(codePage, flags, sWidePath.c_str(), -1, sModsPath.get(), iBytes, nullptr,
+                             codePage == CP_UTF8 ? nullptr : &bUsedDefaultChar) ||
+        bUsedDefaultChar)
+    {
+        QUICK_THROW("Cannot convert Dawn of War mods folder path to the Windows code page");
+    }
+    const int iWideChars = MultiByteToWideChar(codePage, 0, sModsPath.get(), -1, nullptr, 0);
+    std::wstring sRoundTrip(iWideChars > 0 ? iWideChars : 0, L'\0');
+    if (!iWideChars ||
+        MultiByteToWideChar(codePage, 0, sModsPath.get(), -1, sRoundTrip.data(), iWideChars) != iWideChars ||
+        sWidePath != std::wstring(sRoundTrip.data(), sRoundTrip.size() - 1))
+    {
+        QUICK_THROW("Dawn of War mods folder path is not representable in the Windows code page");
+    }
+    return sModsPath.release();
 #else
-    delete[] sModsPath;
     QUICK_THROW("Rainman_GetDEModsPath is only supported on Windows");
 #endif
-
-    return sModsPath;
 }
 
 RAINMAN_API CRgdHashTable *Rainman_LoadDictionaries(const char *sPath, char **sCustom, bool bIgnoreLoadErrors)

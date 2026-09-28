@@ -27,22 +27,26 @@ CModuleLoadPresenter::CModuleLoadPresenter(IMainFrameView &view, wxEvtHandler *p
 }
 
 bool CModuleLoadPresenter::LoadMod(const wxString &sFilePath, const wxString &sLocale, bool bIsCoH,
-                                   const wxString &sMyDocumentsPath)
+                                   const wxString &sMyDocumentsPath, const wxString &sGameInstallPath)
 {
     if (m_taskRunner.IsRunning())
+    {
         return false;
+    }
 
     m_view.ShowLoadingDialog(wxT("Loading module..."));
     m_view.DisableLoadMenuItems();
 
     return m_taskRunner.RunAsync<CModuleFile *>(
         // Background thread
-        [sFilePath, sLocale, bIsCoH, sMyDocumentsPath](CProgressChannel &progress,
-                                                       CCancellationToken &cancel) -> CModuleFile *
+        [sFilePath, sLocale, bIsCoH, sMyDocumentsPath, sGameInstallPath](CProgressChannel &progress,
+                                                                         CCancellationToken &cancel) -> CModuleFile *
         {
             auto sFile = wxStringToAscii(sFilePath);
             if (!sFile)
+            {
                 throw CRainmanException(__FILE__, __LINE__, "Memory allocation error");
+            }
 
             auto *pMod = new CModuleFile;
 
@@ -51,10 +55,21 @@ bool CModuleLoadPresenter::LoadMod(const wxString &sFilePath, const wxString &sL
                 // Set locale before loading
                 auto sLoc = wxStringToAscii(sLocale);
                 if (sLoc)
+                {
                     pMod->SetLocale(sLoc.get());
+                }
 
                 // Load the module file
                 pMod->LoadModuleFile(sFile.get(), CProgressChannel::RainmanCallback, &progress);
+                if (!sGameInstallPath.empty())
+                {
+                    auto sInstall = wxStringToAscii(sGameInstallPath);
+                    if (!sInstall)
+                    {
+                        throw CRainmanException(__FILE__, __LINE__, "Memory allocation error");
+                    }
+                    pMod->SetGameInstallPath(sInstall.get());
+                }
 
                 if (cancel.IsCancelled())
                 {
@@ -108,7 +123,9 @@ bool CModuleLoadPresenter::LoadMod(const wxString &sFilePath, const wxString &sL
 
             CModuleFile *pMod = result.value();
             if (pMod == nullptr)
+            {
                 return; // Cancelled
+            }
 
             m_view.OnModuleLoaded(pMod, sFilePath, false);
         });
@@ -117,7 +134,9 @@ bool CModuleLoadPresenter::LoadMod(const wxString &sFilePath, const wxString &sL
 bool CModuleLoadPresenter::LoadSga(const wxString &sFilePath)
 {
     if (m_taskRunner.IsRunning())
+    {
         return false;
+    }
 
     m_view.ShowLoadingDialog(wxT("Loading SGA archive..."));
     m_view.DisableLoadMenuItems();
@@ -128,7 +147,9 @@ bool CModuleLoadPresenter::LoadSga(const wxString &sFilePath)
         {
             auto sFile = wxStringToAscii(sFilePath);
             if (!sFile)
+            {
                 throw CRainmanException(__FILE__, __LINE__, "Memory allocation error");
+            }
 
             auto *pMod = new CModuleFile;
             try
@@ -158,7 +179,9 @@ bool CModuleLoadPresenter::LoadSga(const wxString &sFilePath)
 
             CModuleFile *pMod = result.value();
             if (pMod == nullptr)
+            {
                 return; // Cancelled
+            }
 
             m_view.OnModuleLoaded(pMod, sFilePath, true);
         });

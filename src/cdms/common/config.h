@@ -66,6 +66,7 @@ wxString ConfGetModToolsFolder();
     may throw a CRainmanException
 */
 wxString ConfGetDEFolder();
+bool ConfIsDEInstallFolder(const wxString &sFolder);
 
 //! Returns the DoW:DE user mods folder (%APPDATA%\Relic Entertainment\Dawn of War\mods)
 /*!

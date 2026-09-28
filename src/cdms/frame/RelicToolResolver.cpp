@@ -20,6 +20,8 @@
 #include "common/config.h"
 #include "common/strings.h"
 #include <wx/filename.h>
+#include <filesystem>
+#include <stdexcept>
 
 RelicToolResolver::RelicToolResolver() { InitToolList(); }
 
@@ -103,6 +105,42 @@ wxString RelicToolResolver::FindToolIn(const wxString &sDir, const wxString &sEx
     }
 
     return {};
+}
+
+wxString RelicToolResolver::GetWorkingDirectory(const wxString &sToolPath, const wxString &sModuleFile)
+{
+    const wxString sProjectDir = wxFileName(sModuleFile).GetPath();
+    if (!sProjectDir.empty() && wxFileName::FileExists(wxFileName(sProjectDir, wxT("pipeline.ini")).GetFullPath()))
+    {
+        return sProjectDir;
+    }
+    return wxFileName(sToolPath).GetPath();
+}
+
+wxString RelicToolResolver::GetToolParameters(const wxString &sExeName, const wxString &sModuleFile,
+                                              const wxString &sModFolder)
+{
+    if (!sExeName.IsSameAs(wxT("AudioEditor.exe"), false) || sModuleFile.empty())
+    {
+        return {};
+    }
+
+    const std::filesystem::path projectRoot(wxFileName(sModuleFile).GetPath().ToStdWstring());
+    if (!std::filesystem::is_regular_file(projectRoot / "pipeline.ini"))
+    {
+        return {};
+    }
+
+    const std::filesystem::path relativeFolder(sModFolder.ToStdWstring());
+    if (sModFolder.empty() || !relativeFolder.is_relative() || sModFolder.Contains(wxT("\"")) ||
+        relativeFolder.lexically_normal() != relativeFolder ||
+        !std::filesystem::is_directory(projectRoot / relativeFolder))
+    {
+        throw std::invalid_argument("The selected mod's ModFolder is not a usable folder beside its pipeline.ini.");
+    }
+
+    const wxString workDir((projectRoot / relativeFolder).wstring());
+    return wxT("-wkdir \"") + workDir + wxT("\"");
 }
 
 std::vector<wxString> RelicToolResolver::GetGameInstallDirs()

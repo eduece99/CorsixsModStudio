@@ -95,7 +95,8 @@ RAINMAN_API char *Rainman_GetDEPath();
     Returns the AppData mods folder used by DoW:DE for user-created mods:
     %APPDATA%\Relic Entertainment\Dawn of War\mods
 
-    Creates the directory tree if it does not exist.
+    Creates the directory tree if it does not exist. Throws on directory creation
+    failure or if the path cannot be represented by the narrow-path API.
 
     \return Returns a valid pointer or throws a CRainmanException
 

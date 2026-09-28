@@ -22,6 +22,7 @@
 #include <rainman/util/Util.h>
 #include <rainman/core/Exception.h>
 #include "Common.h"
+#include <wx/filename.h>
 
 wxColour ConfGetColour(const wxString &keyname, int def_r, int def_g, int def_b)
 {
@@ -135,6 +136,13 @@ wxString ConfGetDEFolder()
     wxString wsDefault = AsciiTowxString(sDefault);
     Rainman_DeleteCharArray(sDefault);
     return TheConfig->Read(AppStr(config_defolder), wsDefault);
+}
+
+bool ConfIsDEInstallFolder(const wxString &sFolder)
+{
+    return !sFolder.empty() && wxFileName::FileExists(wxFileName(sFolder, wxT("DoWDE.module")).GetFullPath()) &&
+           (wxFileName::FileExists(wxFileName(sFolder, wxT("W40k.exe")).GetFullPath()) ||
+            wxFileName::FileExists(wxFileName(sFolder, wxT("W40k_gog.exe")).GetFullPath()));
 }
 
 wxString ConfGetDEModsFolder()

@@ -16,15 +16,18 @@
     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+#include "common/Common.h"
 #include "frmNewMod.h"
 #include "common/strings.h"
 #include "common/strconv.h"
 #include "common/config.h"
+#include "services/CDEModGenerator.h"
 #include "frame/Construct.h"
 #include "CtrlStatusText.h"
 #include <errno.h>
+#include <filesystem>
+#include <stdexcept>
 #include <wx/textdlg.h>
-#include "common/Common.h"
 #include "common/ThemeColours.h"
 #include "rainman/core/RainmanLog.h"
 
@@ -64,7 +67,7 @@ frmNewMod::frmNewMod()
     : wxDialog(wxTheApp->GetTopWindow(), -1, AppStr(new_mod), wxPoint(0, 0), wxDefaultSize,
                wxFRAME_FLOAT_ON_PARENT | wxFRAME_TOOL_WINDOW | wxCAPTION)
 {
-    m_pCreation = 0;
+    m_pCreation = nullptr;
     try
     {
         m_sDoWPath = ConfGetDoWFolder();
@@ -102,7 +105,8 @@ frmNewMod::frmNewMod()
 
     try
     {
-        m_sDEPath = ConfGetDEFolder();
+        m_sDEGamePath = ConfGetDEFolder();
+        m_sDEPath = ConfGetDEModsFolder();
     }
     catch (const CRainmanException &e)
     {
@@ -127,15 +131,39 @@ frmNewMod::frmNewMod()
     pTopSizer->Add(SBT(pBgTemp = new wxStaticText(this, -1, AppStr(newmod_name)), AppStr(newmod_namehelp)), 0,
                    wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxFIXED_MINSIZE | wxALL, 3);
     pTopSizer->Add(
-        SBT(m_pName = new wxTextCtrl(this, IDC_Name, wxT("My Mod"), wxDefaultPosition, FromDIP(wxSize(300, -1))),
+        SBT(m_pName = new wxTextCtrl(this, IDC_Name, wxT("MyMod"), wxDefaultPosition, FromDIP(wxSize(300, -1))),
             AppStr(newmod_namehelp)),
         1, wxALL | wxEXPAND, 3);
+    m_pName->SetToolTip(wxT("DE identifier: 1-64 ASCII letters, digits or underscores; no spaces."));
 
     pTopSizer->Add(SBT(new wxStaticText(this, -1, AppStr(newmod_base)), AppStr(newmod_basehelp)), 0,
                    wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxFIXED_MINSIZE | wxALL, 3);
     pTopSizer->Add(
         SBT(m_pList = new wxChoice(this, IDC_Game, wxDefaultPosition, wxDefaultSize, aBases), AppStr(newmod_basehelp)),
         1, wxALL | wxEXPAND, 3);
+
+    m_pDisplayLabel = new wxStaticText(this, -1, wxT("Display name"));
+    pTopSizer->Add(m_pDisplayLabel, 0, wxALIGN_CENTER_VERTICAL | wxALL, 3);
+    m_pDisplayName = new wxTextCtrl(this, -1, wxT("My Mod"));
+    pTopSizer->Add(m_pDisplayName, 1, wxEXPAND | wxALL, 3);
+
+    m_pDescriptionLabel = new wxStaticText(this, -1, wxT("Description"));
+    pTopSizer->Add(m_pDescriptionLabel, 0, wxALIGN_CENTER_VERTICAL | wxALL, 3);
+    m_pDescription = new wxTextCtrl(this, -1, wxT(""));
+    pTopSizer->Add(m_pDescription, 1, wxEXPAND | wxALL, 3);
+
+    wxArrayString parents;
+    parents.Add(wxT("DoWDE"));
+    parents.Add(wxT("DXP3"));
+    parents.Add(wxT("DXP2"));
+    parents.Add(wxT("WXP"));
+    parents.Add(wxT("W40k"));
+    m_pParentLabel = new wxStaticText(this, -1, wxT("Parent MOD"));
+    pTopSizer->Add(m_pParentLabel, 0, wxALIGN_CENTER_VERTICAL | wxALL, 3);
+    m_pParent = new wxChoice(this, -1, wxDefaultPosition, wxDefaultSize, parents);
+    pTopSizer->Add(m_pParent, 1, wxEXPAND | wxALL, 3);
+    const auto gameDir = std::filesystem::path(m_sDEGamePath.ToStdWstring());
+    m_pParent->SetSelection(std::filesystem::is_regular_file(gameDir / "DoWDE.module") ? 0 : 1);
 
     pTopSizer->Add(SBT(new wxStaticText(this, -1, AppStr(newmod_destination)), AppStr(newmod_destinationhelp)), 0,
                    wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxFIXED_MINSIZE | wxALL, 3);
@@ -146,11 +174,13 @@ frmNewMod::frmNewMod()
         SBT(m_pCreation = new wxStaticText(this, -1, m_sDEPath, wxDefaultPosition, wxDefaultSize, wxST_NO_AUTORESIZE),
             AppStr(newmod_destinationhelp)),
         1, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxALL, 3);
-    pDestSizer->Add(SBT(new wxButton(this, IDC_Browse, AppStr(sgapack_browse)), AppStr(sgapack_dirselect_label_help)),
-                    0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxFIXED_MINSIZE | wxALL, 3);
+    pDestSizer->Add(
+        SBT(m_pBrowse = new wxButton(this, IDC_Browse, AppStr(sgapack_browse)), AppStr(sgapack_dirselect_label_help)),
+        0, wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | wxFIXED_MINSIZE | wxALL, 3);
     pTopSizer->Add(pDestSizer, 1, wxEXPAND);
 
     m_pList->SetSelection(g_kDefinitiveEdition);
+    m_pBrowse->Disable();
 
     wxBoxSizer *pButtonSizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -167,9 +197,29 @@ frmNewMod::frmNewMod()
 
 wxString frmNewMod::GetPath() { return m_sDoWPath; }
 
+bool frmNewMod::IsDEMod() const { return m_pList->GetSelection() == g_kDefinitiveEdition; }
+
 void frmNewMod::OnGameChange(wxCommandEvent &event)
 {
-    if (event.GetSelection() == g_kDefinitiveEdition)
+    const bool de = m_pList->GetSelection() == g_kDefinitiveEdition;
+    m_pDisplayLabel->Show(de);
+    m_pDisplayName->Show(de);
+    m_pDescriptionLabel->Show(de);
+    m_pDescription->Show(de);
+    m_pParentLabel->Show(de);
+    m_pParent->Show(de);
+    m_pBrowse->Enable(!de);
+    m_pName->SetToolTip(de ? wxString(wxT("DE identifier: 1-64 ASCII letters, digits or underscores; no spaces."))
+                           : AppStr(newmod_namehelp));
+    if (de && m_pName->GetValue() == wxT("My Mod"))
+    {
+        m_pName->SetValue(wxT("MyMod"));
+    }
+    else if (!de && m_pName->GetValue() == wxT("MyMod"))
+    {
+        m_pName->SetValue(wxT("My Mod"));
+    }
+    if (de)
     {
         m_pCreation->SetLabel(m_sDEPath);
     }
@@ -189,36 +239,42 @@ void frmNewMod::OnGameChange(wxCommandEvent &event)
     {
         m_pCreation->SetLabel(m_sDoWPath);
     }
+    GetSizer()->Layout();
+    GetSizer()->Fit(this);
 }
 
 void frmNewMod::OnBrowseClick(wxCommandEvent &event)
 {
+    UNUSED(event);
+    if (m_pList->GetSelection() == g_kDefinitiveEdition)
+    {
+        return;
+    }
     wxString sVal =
         wxDirSelector(AppStr(sgapack_dirselect), m_pCreation->GetLabel(), 0, wxDefaultPosition, TheConstruct);
 
+    if (sVal.empty())
+    {
+        return;
+    }
     m_pCreation->SetLabel(sVal);
 
-    if (event.GetSelection() == g_kDefinitiveEdition)
-    {
-        m_sDEPath = sVal;
-        TheConfig->Write(AppStr(config_defolder), sVal);
-    }
-    else if (event.GetSelection() == g_kCompanyOfHeroes)
+    if (m_pList->GetSelection() == g_kCompanyOfHeroes)
     {
         m_sCoHPath = sVal;
         TheConfig->Write(AppStr(config_cohfolder), sVal);
     }
-    else if (event.GetSelection() == g_kDarkCrusade)
+    else if (m_pList->GetSelection() == g_kDarkCrusade)
     {
         m_sDCPath = sVal;
         TheConfig->Write(AppStr(config_dcfolder), sVal);
     }
-    else if (event.GetSelection() == g_kSoulstorm)
+    else if (m_pList->GetSelection() == g_kSoulstorm)
     {
         m_sSSPath = sVal;
         TheConfig->Write(AppStr(config_ssfolder), sVal);
     }
-    else if (event.GetSelection() == g_kDawnOfWar || event.GetSelection() == g_kWinterAssault)
+    else if (m_pList->GetSelection() == g_kDawnOfWar || m_pList->GetSelection() == g_kWinterAssault)
     {
         m_sDoWPath = sVal;
         TheConfig->Write(AppStr(config_dowfolder), sVal);
@@ -407,6 +463,34 @@ void frmNewMod::OnNewClick(wxCommandEvent &event)
 {
     UNUSED(event);
     CDMS_LOG_INFO("Creating new mod");
+    if (m_pList->GetSelection() == g_kDefinitiveEdition)
+    {
+        try
+        {
+            CDEModGenerator::Options options{
+                m_pName->GetValue().ToStdString(wxConvUTF8),
+                m_pDisplayName->GetValue().ToStdString(wxConvUTF8),
+                m_pDescription->GetValue().ToStdString(wxConvUTF8),
+                m_pParent->GetStringSelection().ToStdString(wxConvUTF8),
+            };
+            const auto modsRoot = std::filesystem::path(m_sDEPath.ToStdWstring());
+            const auto gamePath = std::filesystem::path(m_sDEGamePath.ToStdWstring());
+            if (!std::filesystem::is_regular_file(gamePath / (options.parent + ".module")))
+            {
+                throw std::runtime_error("Selected parent module is missing from the configured DE game folder: " +
+                                         options.parent + ".module");
+            }
+            const auto module = CDEModGenerator::Create(modsRoot, options);
+            m_sDoWPath = wxString(module.wstring());
+            EndModal(wxID_NEW);
+        }
+        catch (const std::exception &e)
+        {
+            ThemeColours::ShowMessageBox(wxString::FromUTF8(e.what()), AppStr(new_mod), wxICON_ERROR, this);
+        }
+        return;
+    }
+
     wxString sModNiceName = _UpdatePath(m_pName->GetValue());
     auto saNice = wxStringToAscii(sModNiceName);
 
@@ -439,62 +523,8 @@ void frmNewMod::OnNewClick(wxCommandEvent &event)
         EndModal(wxID_CLOSE);
         return;
     }
-    if (m_pList->GetSelection() == g_kDefinitiveEdition)
-    {
-        // DE uses a simplified folder structure: just Data and Locale
-        char *saDirExt = new char[strlen(saDir) + 30];
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Data");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Chinese");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Czech");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\English");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\English_Chinese");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\French");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\German");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Italian");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Japanese");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Korean");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Korean adult");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Polish");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Russian");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Slovak");
-        _mkdir(saDirExt);
-        strcpy(saDirExt, saDir);
-        strcat(saDirExt, "\\Locale\\Spanish");
-        _mkdir(saDirExt);
-        delete[] saDirExt;
-    }
-    else if (m_pList->GetSelection() == g_kDawnOfWar || m_pList->GetSelection() == g_kWinterAssault ||
-             m_pList->GetSelection() == g_kDarkCrusade || m_pList->GetSelection() == g_kSoulstorm)
+    if (m_pList->GetSelection() == g_kDawnOfWar || m_pList->GetSelection() == g_kWinterAssault ||
+        m_pList->GetSelection() == g_kDarkCrusade || m_pList->GetSelection() == g_kSoulstorm)
     {
         char *saDirExt = new char[strlen(saDir) + 30];
         strcpy(saDirExt, saDir);
@@ -614,30 +644,6 @@ void frmNewMod::OnNewClick(wxCommandEvent &event)
     if (m_pList->GetSelection() == g_kCompanyOfHeroes)
     {
         _MakeCOH(saNice.get(), sDirBackup, sTmpDir, f);
-    }
-    else if (m_pList->GetSelection() == g_kDefinitiveEdition)
-    {
-        saNice = wxStringToAscii(m_pName->GetValue());
-
-        fprintf(f, "[global]\xD\n");
-        fprintf(f, "UIName = %s\xD\n", saNice.get());
-        fprintf(f, "Description = \xD\n");
-        fprintf(f, "DllName = DXP3Mod\xD\n");
-        fprintf(f, "ModFolder = %s\xD\n", sTmpDir);
-        fprintf(f, "ModVersion = 1.0\xD\n");
-        fprintf(f, "TextureFE = \xD\n");
-        fprintf(f, "TextureIcon = \xD\n");
-        fprintf(f, "Playable = 1\xD\n");
-        fprintf(f, "RuntimeMode = 3\xD\n");
-        fprintf(f, "\xD\n");
-        free(sTmpDir);
-        fprintf(f, "DataFolder.1 = %%LOCALE%%\\Data\xD\n");
-        fprintf(f, "DataFolder.2 = Data\xD\n");
-        fprintf(f, "\xD\n");
-        fprintf(f, "RequiredMod.1 = DXP3\xD\n");
-        fprintf(f, "RequiredMod.2 = DXP2\xD\n");
-        fprintf(f, "RequiredMod.3 = WXP\xD\n");
-        fprintf(f, "RequiredMod.4 = W40k\xD\n");
     }
     else
     {

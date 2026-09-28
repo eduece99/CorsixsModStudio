@@ -2,12 +2,19 @@
 find_package(wxWidgets REQUIRED COMPONENTS core base aui html xml xrc propgrid stc adv)
 include(${wxWidgets_USE_FILE})
 
+set(DEFAULT_BURN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/res/_default.burn")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DEFAULT_BURN_SOURCE}")
+file(READ "${DEFAULT_BURN_SOURCE}" DEFAULT_BURN_TEMPLATE)
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
+configure_file(res/DefaultBurnTemplate.h.in "${CMAKE_BINARY_DIR}/generated/DefaultBurnTemplate.h" @ONLY)
+
 file(GLOB CDMS_SOURCES "*.cpp" "*.c" "common/*.cpp" "frame/*.cpp" "tools/*.cpp" "services/*.cpp" "actions/*.cpp" "async/*.cpp" "presenters/*.cpp" "views/*.cpp")
 
 add_executable(ModStudioDE WIN32 ${CDMS_SOURCES} resource.rc)
 
 target_include_directories(ModStudioDE PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}/generated
     ${wxWidgets_INCLUDE_DIRS}
 )
 

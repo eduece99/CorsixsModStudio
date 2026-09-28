@@ -5,6 +5,10 @@ include(${wxWidgets_USE_FILE})
 # CDMS source files under test (non-UI utility modules)
 set(CDMS_SRC_DIR ${CMAKE_SOURCE_DIR}/src/cdms)
 
+add_executable(de_archive_stub dearchive_stub.cpp)
+set_target_properties(de_archive_stub PROPERTIES OUTPUT_NAME Archive
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stubs")
+
 add_executable(cdms_tests
     placeholder_test.cpp
     strconv_test.cpp
@@ -34,6 +38,9 @@ add_executable(cdms_tests
     filetreepresenter_test.cpp
     rgdeditorpresenter_test.cpp
     relictoolresolver_test.cpp
+    modbrowser_test.cpp
+    demodgenerator_test.cpp
+    dearchivetool_test.cpp
     ${CDMS_SRC_DIR}/common/strconv.cpp
     ${CDMS_SRC_DIR}/common/strings.cpp
     ${CDMS_SRC_DIR}/common/Utility.cpp
@@ -43,10 +50,12 @@ add_executable(cdms_tests
     ${CDMS_SRC_DIR}/services/FileService.cpp
     ${CDMS_SRC_DIR}/services/FormatService.cpp
     ${CDMS_SRC_DIR}/services/HashService.cpp
+    ${CDMS_SRC_DIR}/services/CDEModGenerator.cpp
     ${CDMS_SRC_DIR}/async/CProgressChannel.cpp
     ${CDMS_SRC_DIR}/async/CTaskRunner.cpp
     ${CDMS_SRC_DIR}/async/CWxTaskRunner.cpp
     ${CDMS_SRC_DIR}/presenters/CModuleLoadPresenter.cpp
+    ${CDMS_SRC_DIR}/presenters/CModBrowserPresenter.cpp
     ${CDMS_SRC_DIR}/presenters/CSgaMakePresenter.cpp
     ${CDMS_SRC_DIR}/presenters/CUcsToDatPresenter.cpp
     ${CDMS_SRC_DIR}/presenters/CDpsCalculatorPresenter.cpp
@@ -61,12 +70,17 @@ add_executable(cdms_tests
     ${CDMS_SRC_DIR}/presenters/CRgdEditorPresenter.cpp
     ${CDMS_SRC_DIR}/tools/Tool_AutoDPS.cpp
     ${CDMS_SRC_DIR}/tools/Tool_AESetup.cpp
+    ${CDMS_SRC_DIR}/tools/CDeArchiveTool.cpp
     ${CDMS_SRC_DIR}/views/CtrlStatusText.cpp
     ${CDMS_SRC_DIR}/frame/RelicToolResolver.cpp
 )
 
+add_dependencies(cdms_tests de_archive_stub)
+target_compile_definitions(cdms_tests PRIVATE DE_ARCHIVE_STUB_PATH="$<TARGET_FILE:de_archive_stub>")
+
 target_include_directories(cdms_tests PRIVATE
     ${CDMS_SRC_DIR}
+    ${CMAKE_BINARY_DIR}/generated
     ${wxWidgets_INCLUDE_DIRS}
 )
 

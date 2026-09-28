@@ -7,7 +7,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND EXISTS "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcp
 endif()
 
 project(CorsixModStudio
-    VERSION 0.5.7
+    VERSION 0.5.8
     DESCRIPTION "Corsix's Mod Studio: Definitive Edition - Dawn of War / Company of Heroes Modding IDE"
     LANGUAGES C CXX
 )

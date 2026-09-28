@@ -35,9 +35,16 @@ class frmNewMod : public wxDialog
 {
   protected:
     wxTextCtrl *m_pName;
+    wxTextCtrl *m_pDisplayName;
+    wxTextCtrl *m_pDescription;
     wxChoice *m_pList;
+    wxChoice *m_pParent;
+    wxStaticText *m_pDisplayLabel;
+    wxStaticText *m_pDescriptionLabel;
+    wxStaticText *m_pParentLabel;
+    wxButton *m_pBrowse;
     wxStaticText *m_pCreation;
-    wxString m_sDoWPath, m_sCoHPath, m_sDCPath, m_sSSPath, m_sDEPath;
+    wxString m_sDoWPath, m_sCoHPath, m_sDCPath, m_sSSPath, m_sDEPath, m_sDEGamePath;
     wxString _UpdatePath(wxString sName);
 
     void _MakeCOH(char *sNiceName, char *sDirectoryFullPath, char *sDirectoryName, FILE *fModule);
@@ -53,6 +60,7 @@ class frmNewMod : public wxDialog
     void OnNewClick(wxCommandEvent &event);
     void OnCancelClick(wxCommandEvent &event);
     wxString GetPath();
+    [[nodiscard]] bool IsDEMod() const;
 
     void OnGameChange(wxCommandEvent &event);
     void OnBrowseClick(wxCommandEvent &event);

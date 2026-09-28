@@ -1,0 +1,415 @@
+-- Available burn plugins:
+-- 	"EBP to WHE" : Burns an entity blueprint (EBP) file.
+-- 	"RAW to FDA" : Burns audio (WAV, WAVE, AIF, AIFF) files.
+-- 	"Pattern to WTP" : Burns a team pattern (WTP) file.
+-- 	"SGM to WHM" : Burns a Relic model (SGM) file.
+-- 	"Shader to RSH" : Burns a Relic shader (RSH) file.
+-- 	"Texture To RTX" : Burns a texture (TGA) file.
+-- 	"copy" : Copies a file (unmodified).
+-- 	"ignore" : Ignores a file (not burned nor copied).
+
+-- 'burn_targets' contains a list of named burn targets, each defined by a wildcard that will collect
+-- the files assigned to that target. Burn targets are first-come-first-serve; once any burn target
+-- claims a matching file, evaluation stops and remaining burn targets are not considered.
+--
+-- Burn _targets_ do not support overrides. All targets must be defined in the base _default.burn.
+burn_targets =
+{
+	{
+		-- Each burn target has a unique, descriptive name.
+		-- Every burn target must have a corresponding entry in burn_params, matched by this name.
+		name = "Entity Blueprints",
+		-- A single regular expression matches the files added to this burn target.
+		-- Wildcards may use '[[' and ']]' literals, which do not interpret escape sequences.
+		wildcard = [[.*\.ebp$]],
+		-- A list of targets direct each file to one or more burn plugins.
+		targets =
+		{
+			{
+				-- A unique name that matches a burn_param to this target.
+				target = "Data",
+				-- The output folder for this file, once burned.
+				-- This is relative to the project folder
+				destination = "Data",
+				-- The burn plugin to use for this file.
+				plugin = "EBP to WHE",
+			}
+		}
+	},
+
+	{
+		name = "Models",
+		wildcard = [[.*\.sgm$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "SGM to WHM",
+			}
+		}
+	},
+
+	{
+		name = "UI Models",
+		wildcard = [[.*UI.*\.sgm$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "SGM to WHM",
+			},
+		}
+	},
+	
+	{
+		-- The Definitive Edition no longer uses RSH shader files.
+		-- This rule retains support of these files for legacy mods.
+		name = "Legacy Shaders",
+		wildcard = [[.*\.rsh$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "Shader to RSH",
+			}
+		}
+	},
+
+	{
+		-- UI Textures rule is declared first, as these are a special case of the Textures rule.
+		name = "UI Textures",
+		wildcard = [[.*Art.*\\UI\\.*Textures.*\.tga$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "Texture To RTX",
+			}
+		}
+	},
+
+	{
+		-- The Textures rule claims all remaining textures.
+		name = "Textures",
+		wildcard = [[.*\.tga$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "Texture To RTX",
+			}
+		}
+	},
+
+	{
+		name = "Team Patterns",
+		wildcard = [[.*\.wtp$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "Pattern to WTP",
+			}
+		}
+	},
+	
+	{
+		name = "Terrain Materials",
+		wildcard = [[.*\.terrainmaterial$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "copy",
+			},
+		}
+	},
+
+	{
+		-- Textures for image-based lighting (IBL) are authored as DDS cubemaps.
+		name = "IBL Textures",
+		wildcard = [[.*Art.*Lighting.*\.dds$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "Copy",
+			},
+		}
+	},
+	
+	{
+		-- The name of this rule MUST be "raw sound to fda".
+		-- This is hard-coded in the Audio Editor.
+		name = "raw sound to fda",
+		wildcard = [[.*\.(wav|wave|aif|aiff)$]],
+		targets =
+		{
+			{
+				target = "Sound",
+				-- Actually burns to "Data\Sound"
+				destination = "Data",
+				plugin = "RAW to FDA",
+			},
+		}
+	},
+
+	{
+		name = "Audio Editor",
+		wildcard = [[.*\.(rat|con)$]],
+		targets =
+		{
+			{
+				target = "Sound",
+				-- Actually burns to "Data\Sound"
+				destination = "Data",
+				plugin = "copy",
+			},
+		}
+	},
+
+	{
+		name = "UI",
+		wildcard = [[.*\.(screen|styles|colours)$]],
+		targets =
+		{
+			{
+				target = "Data",
+				destination = "Data",
+				plugin = "copy",
+			}
+		}
+	},
+
+	{
+		name = "Fonts",
+		wildcard = [[.*\.(ttf|fnt)$]],
+		targets =
+		{
+			{
+				target = "English-Data",
+				destination = [[Locale\English\Data]],
+				plugin = "copy",
+			}
+		}
+	},
+
+	{
+		-- A final "ignore" rule catches everything not claimed by any previous rule.
+		-- This allows the burner to report the file as ignored, rather than as an error.
+		name = "ignore",
+		wildcard = [[.*]],
+		targets =
+		{
+			{
+				-- For an ignore rule, target and destination must be defined, but can be anything.
+				-- There must still be an accompanying burn_param entry that matches this target.
+				target = "ignore",
+				destination = "ignore",
+				-- An ignore rule uses the "ignore" burner, which does nothing.
+				plugin = "ignore",
+			}
+		}
+	}
+}
+
+-- 'burn_params' provides the parameters submitted to the burn plugin for each target.
+-- Each target defined in 'burn_targets' must have a corresponding target in 'burn_params',
+-- even if there are no params for that target.
+--
+-- Burn Rule Parameter Overrides
+-- Burn rule parameters may be overridden via additional ".burn" files in child folders.
+-- A "_default.burn" in a child folder overrides the base parameters for that child folder
+-- (and all of its child folders).
+-- A ".burn" file may also override the base parameters for an individual file. For example,
+-- when burning "ornament.tga" an accompanying "ornament.tga.burn" file (in the same folder
+-- as "ornament.tga") will override the base burn parameters for only that file.
+burn_params = 
+{
+	{
+		-- The 'burn_param' name must match the name of its 'burn_target.'
+		name = "Entity Blueprints",
+		targets =
+		{
+			{
+				-- The target name here must match the name of a target in the
+				-- equivalently named burn target.
+				target = "Data",
+				-- The 'EBP to WHE' burn plugin requires no parameters.
+			}
+		}
+	},
+
+	{
+		name = "Models",
+		targets =
+		{
+			{
+				target = "Data",
+				params =  
+				{
+					-- When required, burn plugin parameters are specified as key/value pairs.
+					{ "low poly percent", "100" },
+					{ "high poly percent", "100" },
+					{ "anim pos tol", "0" },
+					{ "anim rot tol", "0" },
+				}
+			}
+		}
+	},
+
+	{
+		name = "UI Models",
+		targets =
+		{
+			{
+				target = "Data",
+				params =  
+				{
+					{ "low poly percent", "100" },
+					{ "high poly percent", "100" },
+					{ "anim pos tol", "1" },
+					{ "anim rot tol", "1" },
+				}
+			},
+		}
+	},
+	
+	{
+		name = "Legacy Shaders",
+		targets =
+		{
+			{
+				target = "Data",
+			}
+		}
+	},
+
+	{
+		name = "UI Textures",
+		targets =
+		{
+			{
+				target = "Data",
+				params =  
+				{
+					{ "save mip-map chain", "0" },
+					{ "dxtc", "0" },
+					{ "flip texture", "false" },
+				}
+			},
+		}
+	},
+
+	{
+		name = "Textures",
+		targets =
+		{
+			{
+				target = "Data",
+				params =  
+				{
+					{ "save mip-map chain", "1" },
+					{ "dxtc", "5" },
+					{ "flip texture", "false" },
+				}
+			},
+		}
+	},
+
+	{
+		name = "Team Patterns",
+		targets =
+		{
+			{
+				target = "Data",
+			}
+		}
+	},
+
+	{
+		name = "Terrain Materials",
+		targets =
+		{
+			{
+				target = "Data",
+			}
+		}
+	},
+
+	{
+		name = "IBL Textures",
+		targets =
+		{
+			{
+				target = "Data",
+			}
+		}
+	},
+
+	{
+		name = "raw sound to fda",
+		targets =
+		{
+			{
+				target = "Sound",
+				params =  
+				{
+					{ "bit rate", "2048" },
+					{ "loop begin", "0" },
+					{ "loop end", "-1" },
+					{ "start offset", "0" },
+				}
+			}
+		}
+	},
+
+	{
+		name = "Audio Editor",
+		targets =
+		{
+			{
+				target = "Sound",
+			}
+		}
+	},
+
+	{
+		name = "UI",
+		targets =
+		{
+			{
+				target = "Data",
+			}
+		}
+	},
+
+	{
+		name = "Fonts",
+		targets =
+		{
+			{
+				target = "English-Data",
+			}
+		}
+	},
+
+	{
+		-- Even the "ignore" burn target requires a complementary burn param entry.
+		name = "ignore",
+		targets =
+		{
+			{
+				target = "ignore",
+			}
+		}
+	}	
+}
