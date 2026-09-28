@@ -11,6 +11,8 @@ configure_file(res/DefaultBurnTemplate.h.in "${CMAKE_BINARY_DIR}/generated/Defau
 file(GLOB CDMS_SOURCES "*.cpp" "*.c" "common/*.cpp" "frame/*.cpp" "tools/*.cpp" "services/*.cpp" "actions/*.cpp" "async/*.cpp" "presenters/*.cpp" "views/*.cpp")
 
 add_executable(ModStudioDE WIN32 ${CDMS_SOURCES} resource.rc)
+target_precompile_headers(ModStudioDE PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/common/pch_cdms.h>")
 
 target_include_directories(ModStudioDE PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

@@ -178,6 +178,10 @@ cmake --build --preset tidy-debug
 .\tools\run-clang-tidy.ps1 -Fix                               # auto-fix
 ```
 
+The GUI and CDMS tests precompile commonly used wxWidgets headers. Debug and
+Release build presets run two projects concurrently; the compiler also uses
+MSVC `/MP` within each project.
+
 ### Dependencies (auto-installed by vcpkg)
 
 - **zlib 1.3.1** — compression for SGA archives

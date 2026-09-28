@@ -74,6 +74,8 @@ add_executable(cdms_tests
     ${CDMS_SRC_DIR}/views/CtrlStatusText.cpp
     ${CDMS_SRC_DIR}/frame/RelicToolResolver.cpp
 )
+target_precompile_headers(cdms_tests PRIVATE
+    "${CDMS_SRC_DIR}/common/pch_cdms.h")
 
 add_dependencies(cdms_tests de_archive_stub)
 target_compile_definitions(cdms_tests PRIVATE DE_ARCHIVE_STUB_PATH="$<TARGET_FILE:de_archive_stub>")
