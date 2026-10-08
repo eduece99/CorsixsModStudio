@@ -26,8 +26,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <process.h>
+#include "../common/TestProcessId.h"
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 namespace
 {
@@ -38,7 +40,7 @@ class CDeArchiveToolTest : public ::testing::Test
     {
         ASSERT_TRUE(m_initializer.IsOk());
         const auto root = std::filesystem::temp_directory_path() /
-                          ("cdms_de_archive_" + std::to_string(_getpid()) + "_" +
+                          ("cdms_de_archive_" + std::to_string(GetTestProcessId()) + "_" +
                            std::to_string(reinterpret_cast<std::uintptr_t>(this)));
         ASSERT_TRUE(std::filesystem::create_directory(root));
         m_sRoot = wxString(std::filesystem::canonical(root).wstring());
@@ -268,6 +270,7 @@ TEST_F(CDeArchiveToolTest, RejectsMissingOutputFolderAndNonSgaOutput)
     EXPECT_NE(sError.Find(wxT("outside the source")), wxNOT_FOUND);
 }
 
+#ifdef _WIN32
 TEST_F(CDeArchiveToolTest, RejectsOutputInsideSourceWithShortPathAlias)
 {
     std::wstring shortRoot(32768, L'\0');
@@ -285,6 +288,7 @@ TEST_F(CDeArchiveToolTest, RejectsOutputInsideSourceWithShortPathAlias)
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource, output, args, error));
     EXPECT_NE(error.Find(wxT("outside the source")), wxNOT_FOUND);
 }
+#endif
 
 TEST_F(CDeArchiveToolTest, ResolvesNestedRelativeRootAgainstSelectedSource)
 {

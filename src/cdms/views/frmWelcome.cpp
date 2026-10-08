@@ -23,6 +23,7 @@
 #include "CtrlStatusText.h"
 #include "common/strings.h"
 #include "common/Common.h"
+#include "common/BitmapResources.h"
 
 BEGIN_EVENT_TABLE(frmWelcome, wxWindow)
 EVT_SIZE(frmWelcome::OnSize)
@@ -41,12 +42,20 @@ frmWelcome::frmWelcome(wxWindow *parent, wxWindowID id, const wxPoint &pos, cons
 {
     bFirstMouseEvent = true;
 
-    m_pDonateBitmap = std::make_unique<wxBitmap>(wxT("IDB_DONATE"), wxBITMAP_TYPE_BMP_RESOURCE);
-    m_pDonateBitmap->SetMask(new wxMask(*m_pDonateBitmap, wxColour(255, 0, 255)));
+    m_pDonateBitmap = std::make_unique<wxBitmap>(CDMSBitmapResources::LoadBitmap(wxT("IDB_DONATE"), wxT("donate.bmp")));
+    if (m_pDonateBitmap->IsOk())
+    {
+        m_pDonateBitmap->SetMask(new wxMask(*m_pDonateBitmap, wxColour(255, 0, 255)));
+    }
+    else
+    {
+        wxLogError(wxT("Failed to load the donate bitmap."));
+    }
 
     SetBackgroundStyle(wxBG_STYLE_SYSTEM);
     auto *pTopSizer = new wxBoxSizer(wxVERTICAL);
-    auto *pNewMod = new wxButton(this, IDC_NewMod, AppStr(new_mod), wxDefaultPosition, FromDIP(wxSize(150, -1)));
+    auto *pNewMod = new wxButton(this, IDC_NewMod, AppStr(new_mod), wxDefaultPosition,
+                                 wxSize(FromDIP(150), wxDefaultCoord));
     SetBackgroundColour(pNewMod->GetBackgroundColour());
 
     srand((unsigned)time(nullptr));
@@ -57,23 +66,28 @@ frmWelcome::frmWelcome(wxWindow *parent, wxWindowID id, const wxPoint &pos, cons
     pTopSizer->Add(new wxStaticText(this, -1, AppStr(welcome_caption)), 0, wxALIGN_CENTER | wxALL, 3);
     pTopSizer->Add(SBT(pNewMod, AppStr(new_mod_help)), 0, wxALL | wxALIGN_CENTER, 3);
     pTopSizer->Add(
-        SBT(new wxButton(this, IDC_LoadModDE, AppStr(open_modde), wxDefaultPosition, FromDIP(wxSize(150, -1))),
+        SBT(new wxButton(this, IDC_LoadModDE, AppStr(open_modde), wxDefaultPosition,
+                         wxSize(FromDIP(150), wxDefaultCoord)),
             AppStr(open_modde_help)),
         0, wxALL | wxALIGN_CENTER, 3);
     pTopSizer->Add(
-        SBT(new wxButton(this, IDC_LoadModSS, AppStr(open_modss), wxDefaultPosition, FromDIP(wxSize(150, -1))),
+        SBT(new wxButton(this, IDC_LoadModSS, AppStr(open_modss), wxDefaultPosition,
+                         wxSize(FromDIP(150), wxDefaultCoord)),
             AppStr(open_modss_help)),
         0, wxALL | wxALIGN_CENTER, 3);
-    pTopSizer->Add(SBT(new wxButton(this, IDC_LoadSga, AppStr(open_sga), wxDefaultPosition, FromDIP(wxSize(150, -1))),
+    pTopSizer->Add(SBT(new wxButton(this, IDC_LoadSga, AppStr(open_sga), wxDefaultPosition,
+                                    wxSize(FromDIP(150), wxDefaultCoord)),
                        AppStr(open_sga_help)),
                    0, wxALL | wxALIGN_CENTER, 3);
-    pTopSizer->Add(SBT(new wxButton(this, IDC_Help, AppStr(help_index), wxDefaultPosition, FromDIP(wxSize(150, -1))),
+    pTopSizer->Add(SBT(new wxButton(this, IDC_Help, AppStr(help_index), wxDefaultPosition,
+                                    wxSize(FromDIP(150), wxDefaultCoord)),
                        AppStr(help_index_help)),
                    0, wxALL | wxALIGN_CENTER, 3);
     pTopSizer->Add(
-        SBT(new wxButton(this, IDC_Quit, AppStr(exit), wxDefaultPosition, FromDIP(wxSize(150, -1))), AppStr(exit_help)),
+        SBT(new wxButton(this, IDC_Quit, AppStr(exit), wxDefaultPosition, wxSize(FromDIP(150), wxDefaultCoord)),
+            AppStr(exit_help)),
         0, wxALL | wxALIGN_CENTER, 3);
-    if (iShowDonate == 1)
+    if (iShowDonate == 1 && m_pDonateBitmap->IsOk())
     {
         pTopSizer->Add(SBT(new wxBitmapButton(this, IDC_Donate, *m_pDonateBitmap, wxDefaultPosition, wxDefaultSize, 0),
                            AppStr(donate_help)),

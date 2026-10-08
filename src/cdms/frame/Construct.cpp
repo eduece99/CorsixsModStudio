@@ -30,6 +30,7 @@
 #include <memory>
 #include <stdexcept>
 #include <fstream>
+#include <filesystem>
 #include <rainman/io/CFileSystemStore.h>
 #include <rainman/module/CFileMap.h>
 #include "tools/Tools.h"
@@ -43,11 +44,14 @@ extern "C"
 #include "common/config.h"
 #include "common/strconv.h"
 #include "common/ThemeColours.h"
-// For ShellExecute :(
+#ifdef _WIN32
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
-#include <shobjidl.h>
+#else
+#include <wx/cmdline.h>
+#include <wx/utils.h>
+#endif
 #ifdef _DEBUG
 #include <crtdbg.h>
 #endif
@@ -59,6 +63,40 @@ extern "C"
 #include "views/frmModBrowser.h"
 #include "views/frmDeArchive.h"
 #include "views/frmDeFileEditor.h"
+
+namespace
+{
+bool LaunchExecutable(const wxString &sExecutable, const wxString &sParameters, const wxString &sWorkingDirectory)
+{
+#ifdef _WIN32
+    const auto result = reinterpret_cast<INT_PTR>(
+        ShellExecuteW(static_cast<HWND>(TheConstruct->GetHandle()), L"open", sExecutable.wc_str(),
+                      sParameters.wc_str(), sWorkingDirectory.wc_str(), SW_SHOWNORMAL));
+    return result > 32;
+#else
+    wxArrayString parsedArguments = wxCmdLineParser::ConvertStringToArgs(sParameters);
+    std::vector<std::wstring> arguments;
+    arguments.reserve(parsedArguments.size() + 1);
+    arguments.push_back(sExecutable.ToStdWstring());
+    for (const auto &argument : parsedArguments)
+    {
+        arguments.push_back(argument.ToStdWstring());
+    }
+
+    std::vector<const wchar_t *> argumentPointers;
+    argumentPointers.reserve(arguments.size() + 1);
+    for (const auto &argument : arguments)
+    {
+        argumentPointers.push_back(argument.c_str());
+    }
+    argumentPointers.push_back(nullptr);
+
+    wxExecuteEnv environment;
+    environment.cwd = sWorkingDirectory;
+    return wxExecute(argumentPointers.data(), wxEXEC_ASYNC, nullptr, &environment) != 0;
+#endif
+}
+} // namespace
 
 BEGIN_EVENT_TABLE(ConstructFrame, wxFrame)
 EVT_MENU(IDM_LoadModDoWWA, ConstructFrame::OnOpenModDoW)
@@ -275,9 +313,7 @@ void ConstructFrame::OnRelicToolCommand(wxCommandEvent &event)
             return;
         }
     }
-    auto result = reinterpret_cast<INT_PTR>(
-        ShellExecute((HWND)GetHandle(), wxT("open"), tool.sResolvedPath, sParameters, sFolder, SW_SHOWNORMAL));
-    if (result <= 32)
+    if (!LaunchExecutable(tool.sResolvedPath, sParameters, sFolder))
     {
         ThemeColours::ShowMessageBox(wxT("Failed to launch ") + tool.sExeName, wxT("Error"), wxOK | wxICON_ERROR);
     }
@@ -312,7 +348,10 @@ void ConstructFrame::LaunchCredits(wxCommandEvent &event)
 
 void ConstructFrame::LaunchURL(wxString sURL)
 {
-    ShellExecute((HWND)TheConstruct->GetHandle(), wxT("open"), sURL, 0, 0, 3);
+    if (!wxLaunchDefaultBrowser(sURL))
+    {
+        ThemeColours::ShowMessageBox(wxT("Failed to open URL: ") + sURL, wxT("Error"), wxOK | wxICON_ERROR);
+    }
 }
 
 void ConstructFrame::LaunchHelp(wxCommandEvent &event)
@@ -513,7 +552,11 @@ void ConstructFrame::LaunchMod(wxCommandEvent &event)
         sCmdLine.Append(wxT(" -nomovies"));
     }
 
-    ShellExecute((HWND)TheConstruct->GetHandle(), wxT("open"), sCommand, sCmdLine, sFolder, 3);
+    if (!LaunchExecutable(sCommand, sCmdLine, sFolder))
+    {
+        ThemeColours::ShowMessageBox(wxT("Failed to launch the game executable: ") + sCommand, wxT("Error"),
+                                     wxOK | wxICON_ERROR, this);
+    }
 }
 
 void ConstructFrame::LaunchWarnings(wxCommandEvent &event)
@@ -522,11 +565,17 @@ void ConstructFrame::LaunchWarnings(wxCommandEvent &event)
     wxString sCommand, sFolder;
     if (GetModule() && GetModuleService().GetModuleType() != CModuleFile::MT_DawnOfWar)
     {
+#ifdef _WIN32
         wchar_t sDocumentsFolder[MAX_PATH];
         SHGetFolderPath(NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, sDocumentsFolder);
         sCommand = wxT("\"");
         sCommand.Append(sDocumentsFolder);
         sCommand.Append(wxT("\\My Games\\Company of Heroes\\warnings.log\""));
+#else
+        sCommand = wxFileName(wxStandardPaths::Get().GetDocumentsDir(),
+                              wxT("My Games/Company of Heroes/warnings.log"))
+                       .GetFullPath();
+#endif
     }
     else
     {
@@ -540,12 +589,20 @@ void ConstructFrame::LaunchWarnings(wxCommandEvent &event)
         sCommand.Append(wxT("warnings.log\""));
     }
 
+#ifdef _WIN32
     wchar_t sWinFolder[MAX_PATH];
     SHGetFolderPath(NULL, CSIDL_SYSTEM, NULL, SHGFP_TYPE_CURRENT, sWinFolder);
     wxString sNotepad = sWinFolder;
     sNotepad.Append(wxT("\\notepad.exe"));
 
-    ShellExecute((HWND)TheConstruct->GetHandle(), wxT("open"), sNotepad, sCommand, sFolder, 3);
+    if (!LaunchExecutable(sNotepad, sCommand, sFolder))
+#else
+    if (!wxLaunchDefaultApplication(sCommand))
+#endif
+    {
+        ThemeColours::ShowMessageBox(wxT("Failed to open warnings log: ") + sCommand, wxT("Error"),
+                                     wxOK | wxICON_ERROR, this);
+    }
 }
 
 ConstructFrame::ConstructFrame(const wxString &sTitle, const wxPoint &oPos, const wxSize &oSize)
@@ -587,16 +644,20 @@ ConstructFrame::ConstructFrame(const wxString &sTitle, const wxPoint &oPos, cons
     m_pLspStatusPanel = new CLspStatusPanel(GetStatusBar());
     {
         wxRect rect;
-        GetStatusBar()->GetFieldRect(1, rect);
-        m_pLspStatusPanel->SetSize(rect);
+        if (GetStatusBar()->GetFieldRect(1, rect) && rect.width > 0 && rect.height > 0)
+        {
+            m_pLspStatusPanel->SetSize(rect);
+        }
     }
     GetStatusBar()->Bind(wxEVT_SIZE,
                          [this](wxSizeEvent &evt)
                          {
                              evt.Skip();
                              wxRect rect;
-                             GetStatusBar()->GetFieldRect(1, rect);
-                             m_pLspStatusPanel->SetSize(rect);
+                             if (GetStatusBar()->GetFieldRect(1, rect) && rect.width > 0 && rect.height > 0)
+                             {
+                                 m_pLspStatusPanel->SetSize(rect);
+                             }
                          });
 
     if (m_bLspShutDown)
@@ -685,16 +746,19 @@ lsp::CLspClient *ConstructFrame::GetLspClient()
     // LuaLS workspace.library expects directories, not individual files.
     std::string workspaceRoot;
 
-    wxString lspDir = exeDir.GetPath() + wxT("\\Mod_Studio_Files\\lsp");
+    wxFileName lspDirName = wxFileName::DirName(exeDir.GetPath());
+    lspDirName.AppendDir(wxT("Mod_Studio_Files"));
+    lspDirName.AppendDir(wxT("lsp"));
+    const wxString lspDir = lspDirName.GetPath();
 
     bool isDow =
         m_moduleManager.HasModule() && m_moduleManager.GetModuleService().GetModuleType() == CModuleFile::MT_DawnOfWar;
 
     // Load LuaLS settings from the appropriate config file
-    wxString configPath = lspDir + (isDow ? wxT("\\dow-config.json") : wxT("\\coh-config.json"));
+    wxString configPath = wxFileName(lspDir, isDow ? wxT("dow-config.json") : wxT("coh-config.json")).GetFullPath();
     nlohmann::json settings;
 
-    std::ifstream configFile(configPath.ToStdWstring());
+    std::ifstream configFile(std::filesystem::path(configPath.ToStdWstring()));
     if (configFile.is_open())
     {
         try
@@ -715,8 +779,12 @@ lsp::CLspClient *ConstructFrame::GetLspClient()
     // Override workspace.library with absolute directory paths so LuaLS can
     // find the SCAR definition stubs regardless of working directory.
     std::vector<std::string> libraryPaths;
-    libraryPaths.push_back(std::string(wxString(lspDir + wxT("\\common")).ToUTF8()));
-    libraryPaths.push_back(std::string(wxString(lspDir + (isDow ? wxT("\\dow") : wxT("\\coh"))).ToUTF8()));
+    wxFileName commonLibraryDir = wxFileName::DirName(lspDir);
+    commonLibraryDir.AppendDir(wxT("common"));
+    wxFileName gameLibraryDir = wxFileName::DirName(lspDir);
+    gameLibraryDir.AppendDir(isDow ? wxT("dow") : wxT("coh"));
+    libraryPaths.push_back(std::string(commonLibraryDir.GetPath().ToUTF8()));
+    libraryPaths.push_back(std::string(gameLibraryDir.GetPath().ToUTF8()));
     settings["workspace.library"] = libraryPaths;
 
     for (const auto &path : libraryPaths)
@@ -729,9 +797,9 @@ lsp::CLspClient *ConstructFrame::GetLspClient()
     // (workspace.library, runtime.version, etc.) to LuaLS — the
     // initializationOptions/didChangeConfiguration LSP protocol uses a
     // different nested format under a "Lua" key.
-    wxString runtimeConfigPath = lspDir + wxT("\\runtime-config.json");
+    wxString runtimeConfigPath = wxFileName(lspDir, wxT("runtime-config.json")).GetFullPath();
     {
-        std::ofstream runtimeConfigFile(runtimeConfigPath.ToStdWstring());
+        std::ofstream runtimeConfigFile(std::filesystem::path(runtimeConfigPath.ToStdWstring()));
         if (runtimeConfigFile.is_open())
         {
             runtimeConfigFile << settings.dump(4);
@@ -1235,10 +1303,15 @@ void ConstructFrame::DoLoadMod(wxString sPath, eLoadModGames eGame)
         wxString sMyDocumentsPath;
         if (bIsCoH)
         {
+#ifdef _WIN32
             wchar_t sMapPackDir[MAX_PATH];
             SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, sMapPackDir);
             wcscat(sMapPackDir, L"\\My Games\\Company of Heroes");
             sMyDocumentsPath = sMapPackDir;
+#else
+            sMyDocumentsPath =
+                wxFileName(wxStandardPaths::Get().GetDocumentsDir(), wxT("My Games/Company of Heroes")).GetFullPath();
+#endif
         }
 
         // Hand off to presenter for async background loading

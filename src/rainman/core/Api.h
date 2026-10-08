@@ -23,7 +23,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 // #pragma warning( disable : 4251 )
 
 #ifdef RAINMAN_GNUC
+#ifndef RAINMAN_NO_EXPORTS
 #define RAINMAN_NO_EXPORTS
+#endif
 #endif
 
 #ifdef RAINMAN_NO_EXPORTS

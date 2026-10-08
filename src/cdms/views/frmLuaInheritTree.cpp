@@ -22,6 +22,8 @@
 #include "common/ThemeColours.h"
 #include "res/Icons.h"
 #include <rainman/core/RainmanLog.h>
+#include <rainman/module/CFileMap.h>
+#include <filesystem>
 
 BEGIN_EVENT_TABLE(frmLuaInheritTree, wxWindow)
 EVT_SIZE(frmLuaInheritTree::OnSize)
@@ -134,6 +136,25 @@ frmLuaInheritTree::frmLuaInheritTree(wxWindow *parent, wxWindowID id, const wxPo
     if (CMakeLuaInheritTree::_DoesExist("Generic\\attrib\\"))
     {
         CDMS_LOG_INFO("Lua inherit tree: 'Generic\\attrib\\' folder found, creating tree widget");
+        const auto sourcePaths =
+            TheConstruct->GetModuleService().GetFileMap()->GetSourceFolderPaths("Generic\\attrib\\");
+        if (sourcePaths.empty())
+        {
+            CDMS_LOG_DEBUG("Lua inherit tree: 'Generic\\attrib\\' has no filesystem-backed source directory");
+        }
+        for (const auto &sourcePath : sourcePaths)
+        {
+            std::error_code ec;
+            const auto absolutePath = std::filesystem::absolute(sourcePath, ec);
+            if (ec)
+            {
+                CDMS_LOG_WARN("Lua inherit tree: unable to resolve source path '{}' to an absolute path: {}",
+                              sourcePath, ec.message());
+                continue;
+            }
+            CDMS_LOG_DEBUG("Lua inherit tree: absolute path for 'Generic\\attrib\\' is '{}'",
+                           absolutePath.lexically_normal().string());
+        }
         wxBoxSizer *pTopSizer = new wxBoxSizer(wxVERTICAL);
 
         m_pInheritTable = new CInheritTable;

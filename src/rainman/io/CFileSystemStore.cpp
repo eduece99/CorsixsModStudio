@@ -18,14 +18,38 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "rainman/io/CFileSystemStore.h"
+#include "rainman/core/WideFile.h"
 #ifndef RAINMAN_GNUC
 #include <direct.h>
 #endif
+#include <algorithm>
 #include <cstring>
 #include <cerrno>
+#ifdef RAINMAN_GNUC
+#include <sys/stat.h>
+#endif
 #include "rainman/core/Exception.h"
 #include "rainman/core/Internal_Util.h"
 #include "rainman/core/memdebug.h"
+
+#ifdef RAINMAN_GNUC
+namespace
+{
+std::string ToNativePath(const char *sPath)
+{
+    std::string sNativePath(sPath);
+    std::replace(sNativePath.begin(), sNativePath.end(), '\\', '/');
+    return sNativePath;
+}
+
+std::wstring ToNativePath(const wchar_t *sPath)
+{
+    std::wstring sNativePath(sPath);
+    std::replace(sNativePath.begin(), sNativePath.end(), L'\\', L'/');
+    return sNativePath;
+}
+} // namespace
+#endif
 
 CFileSystemStore::CFileSystemStore()
 {
@@ -64,6 +88,10 @@ void CFileSystemStore::VInit(void *pUnused)
 IFileStore::IStream *CFileSystemStore::VOpenStream(const char *sFile)
 {
     RAINMAN_LOG_DEBUG("CFileSystemStore::VOpenStream(\"{}\")", sFile ? sFile : "(null)");
+#ifdef RAINMAN_GNUC
+    const std::string sNativePath = ToNativePath(sFile);
+    sFile = sNativePath.c_str();
+#endif
     FILE *fFile = fopen(sFile, "rb");
     if (fFile == nullptr)
     {
@@ -89,7 +117,11 @@ IFileStore::IStream *CFileSystemStore::VOpenStream(const char *sFile)
 
 IFileStore::IStream *CFileSystemStore::OpenStreamW(const wchar_t *sFile)
 {
-    FILE *fFile = _wfopen(sFile, L"rb");
+#ifdef RAINMAN_GNUC
+    const std::wstring sNativePath = ToNativePath(sFile);
+    sFile = sNativePath.c_str();
+#endif
+    FILE *fFile = RainmanFOpen(sFile, L"rb");
     if (fFile == nullptr)
     {
         throw CRainmanException(nullptr, __FILE__, __LINE__, "Could not open \'%S\'", sFile);
@@ -151,11 +183,15 @@ bool TryMakeDirectoryW(wchar_t *sPath)
 
 IFileStore::IOutputStream *CFileSystemStore::OpenOutputStreamW(const wchar_t *sFile, bool bEraseIfPresent)
 {
+#ifdef RAINMAN_GNUC
+    const std::wstring sNativePath = ToNativePath(sFile);
+    sFile = sNativePath.c_str();
+#endif
     FILE *fFile = nullptr;
     if (!bEraseIfPresent)
-        fFile = _wfopen(sFile, L"r+b");
+        fFile = RainmanFOpen(sFile, L"r+b");
     if (fFile == nullptr)
-        fFile = _wfopen(sFile, L"w+b");
+        fFile = RainmanFOpen(sFile, L"w+b");
     if (fFile == nullptr)
     {
         // Maybe folder doesn't exist?
@@ -164,9 +200,9 @@ IFileStore::IOutputStream *CFileSystemStore::OpenOutputStreamW(const wchar_t *sF
         if (TryMakeDirectoryW(sFile2))
         {
             if (!bEraseIfPresent)
-                fFile = _wfopen(sFile, L"r+b");
+                fFile = RainmanFOpen(sFile, L"r+b");
             if (fFile == nullptr)
-                fFile = _wfopen(sFile, L"w+b");
+                fFile = RainmanFOpen(sFile, L"w+b");
         }
         free(sFile2);
 #endif
@@ -187,6 +223,10 @@ IFileStore::IOutputStream *CFileSystemStore::OpenOutputStreamW(const wchar_t *sF
 IFileStore::IOutputStream *CFileSystemStore::VOpenOutputStream(const char *sFile, bool bEraseIfPresent)
 {
     RAINMAN_LOG_DEBUG("CFileSystemStore::VOpenOutputStream(\"{}\")", sFile ? sFile : "(null)");
+#ifdef RAINMAN_GNUC
+    const std::string sNativePath = ToNativePath(sFile);
+    sFile = sNativePath.c_str();
+#endif
     FILE *fFile = nullptr;
     if (!bEraseIfPresent)
         fFile = fopen(sFile, "r+b");
@@ -377,13 +417,31 @@ static wchar_t *mystrdup(const wchar_t *sStr)
 }
 
 #ifdef EXTEND_FILESTORE_WITH_TRAVERSE
-tLastWriteTime CFileSystemStore::VGetLastWriteTime(const char *sPath) { return GetLastWriteTime(sPath); }
+tLastWriteTime CFileSystemStore::VGetLastWriteTime(const char *sPath)
+{
+#ifdef RAINMAN_GNUC
+    const std::string sNativePath = ToNativePath(sPath);
+    return GetLastWriteTime(sNativePath.c_str());
+#else
+    return GetLastWriteTime(sPath);
+#endif
+}
 
 void CFileSystemStore::VCreateFolderIn(const char *sPath, const char *sNewFolderName)
 {
+#ifdef RAINMAN_GNUC
+    const std::string sNativePath = ToNativePath(sPath);
+    const std::string sNativeFolderName = ToNativePath(sNewFolderName);
+    sPath = sNativePath.c_str();
+    sNewFolderName = sNativeFolderName.c_str();
+#endif
     char *sNewPath = new char[strlen(sPath) + strlen(sNewFolderName) + 2];
     strcpy(sNewPath, sPath);
+#ifdef RAINMAN_GNUC
+    strcat(sNewPath, "/");
+#else
     strcat(sNewPath, "\\");
+#endif
     strcat(sNewPath, sNewFolderName);
     bool bRet = (_mkdir(sNewPath) == 0);
     if (!bRet)
@@ -406,6 +464,56 @@ void CFileSystemStore::VCreateFolderIn(const char *sPath, const char *sNewFolder
 
 CFileSystemStore::CIteratorW::CIteratorW(const wchar_t *sFolder, const CFileSystemStore *pStore)
 {
+#ifdef RAINMAN_GNUC
+    m_pDirectory = nullptr;
+    m_pDirEnt = nullptr;
+    const std::wstring sNativePath = ToNativePath(sFolder);
+    m_wParentPath = mystrdup(sNativePath.c_str());
+    m_pStore = pStore;
+    m_wFullPath = nullptr;
+    m_sParentPath = nullptr;
+    m_sFullPath = nullptr;
+    m_sFileName = nullptr;
+
+    try
+    {
+        const std::string sUtf8Folder = RainmanWideToUtf8(sNativePath.c_str());
+        m_pDirectory = opendir(sUtf8Folder.c_str());
+    }
+    catch (const std::range_error &)
+    {
+        delete[] m_wParentPath;
+        throw CRainmanException(__FILE__, __LINE__, "Could not convert directory path to UTF-8");
+    }
+
+    if (m_pDirectory == nullptr)
+    {
+        delete[] m_wParentPath;
+        throw CRainmanException(nullptr, __FILE__, __LINE__, "opendir failed (%s)", strerror(errno));
+    }
+
+    while ((m_pDirEnt = readdir(m_pDirectory)) != nullptr)
+    {
+        if (strcmp(m_pDirEnt->d_name, ".") != 0 && strcmp(m_pDirEnt->d_name, "..") != 0)
+            break;
+    }
+
+    if (m_pDirEnt != nullptr)
+    {
+        try
+        {
+            m_wFileName = RainmanUtf8ToWide(m_pDirEnt->d_name);
+        }
+        catch (const std::range_error &)
+        {
+            closedir(m_pDirectory);
+            m_pDirectory = nullptr;
+            delete[] m_wParentPath;
+            throw CRainmanException(__FILE__, __LINE__, "Could not convert directory entry name from UTF-8");
+        }
+        RebuildFullPath(m_wFileName.c_str());
+    }
+#else
     m_HandFD = nullptr;
     m_wParentPath = mystrdup(sFolder);
     m_wFullPath = nullptr;
@@ -453,6 +561,7 @@ CFileSystemStore::CIteratorW::CIteratorW(const wchar_t *sFolder, const CFileSyst
     wcscpy(m_wFullPath, m_wParentPath);
     wcscat(m_wFullPath, L"\\");
     wcscat(m_wFullPath, m_W32FD.cFileName);
+#endif
 }
 
 CFileSystemStore::CIterator::CIterator(const char *sFolder, const CFileSystemStore *pStore)
@@ -461,16 +570,25 @@ CFileSystemStore::CIterator::CIterator(const char *sFolder, const CFileSystemSto
 
     m_pDirectory = 0;
     m_pDirEnt = 0;
-    m_sParentPath = new char[strlen(sFolder) + 2];
-    strcpy(m_sParentPath, sFolder);
-    Util_EnsureEndsWith(m_sParentPath, '/');
+    const std::string sNativePath = ToNativePath(sFolder);
+    m_sParentPath = new char[sNativePath.size() + 2];
+    strcpy(m_sParentPath, sNativePath.c_str());
+    const size_t iPathLength = sNativePath.size();
+    if (iPathLength > 0 && m_sParentPath[iPathLength - 1] != '/')
+    {
+        m_sParentPath[iPathLength] = '/';
+        m_sParentPath[iPathLength + 1] = '\0';
+    }
     m_iParentPathLen = strlen(m_sParentPath);
     m_pStore = pStore;
 
     if ((m_pDirectory = opendir(m_sParentPath)) == 0)
     {
+        const int iError = errno;
+        const std::string sFailedPath(m_sParentPath);
         delete[] m_sParentPath;
-        throw CRainmanException(0, __FILE__, __LINE__, "opendir failed (%s)", sFolder);
+        throw CRainmanException(nullptr, __FILE__, __LINE__, "opendir failed on '%s': %s", sFailedPath.c_str(),
+                                strerror(iError));
     }
 
     while ((m_pDirEnt = readdir(m_pDirectory)) != 0)
@@ -531,8 +649,13 @@ CFileSystemStore::CIteratorW::~CIteratorW()
     delete[] m_sFileName;
     delete[] m_wParentPath;
     delete[] m_wFullPath;
+#ifdef RAINMAN_GNUC
+    if (m_pDirectory)
+        closedir(m_pDirectory);
+#else
     if (m_HandFD)
         FindClose(m_HandFD);
+#endif
 }
 
 CFileSystemStore::CIterator::~CIterator()
@@ -549,10 +672,32 @@ CFileSystemStore::CIterator::~CIterator()
 
 IDirectoryTraverser::IIterator::eTypes CFileSystemStore::CIteratorW::VGetType()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirEnt == nullptr)
+        return IDirectoryTraverser::IIterator::T_Nothing;
+    struct stat sFileInfo
+    {
+    };
+    std::string sUtf8Path;
+    try
+    {
+        sUtf8Path = RainmanWideToUtf8(m_wFullPath);
+    }
+    catch (const std::range_error &)
+    {
+        throw CRainmanException(__FILE__, __LINE__, "Could not convert file path to UTF-8");
+    }
+    if (stat(sUtf8Path.c_str(), &sFileInfo) != 0)
+        throw CRainmanException(nullptr, __FILE__, __LINE__, "Could not inspect '%s': %s", sUtf8Path.c_str(),
+                                strerror(errno));
+    return S_ISDIR(sFileInfo.st_mode) ? IDirectoryTraverser::IIterator::T_Directory
+                                      : IDirectoryTraverser::IIterator::T_File;
+#else
     if (m_HandFD == nullptr)
         return IDirectoryTraverser::IIterator::T_Nothing;
     return (m_W32FD.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ? IDirectoryTraverser::IIterator::T_Directory
                                                                 : IDirectoryTraverser::IIterator::T_File);
+#endif
 }
 
 IDirectoryTraverser::IIterator::eTypes CFileSystemStore::CIterator::VGetType()
@@ -572,10 +717,17 @@ IDirectoryTraverser::IIterator::eTypes CFileSystemStore::CIterator::VGetType()
 
 IDirectoryTraverser::IIterator *CFileSystemStore::CIteratorW::VOpenSubDir()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirEnt == nullptr)
+        throw CRainmanException(__FILE__, __LINE__, "Nothing to open");
+    if (VGetType() == IDirectoryTraverser::IIterator::T_Directory)
+        return new CIteratorW(m_wFullPath, m_pStore);
+#else
     if (m_HandFD == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Nothing to open");
     if (m_W32FD.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         return new CIteratorW(m_wFullPath, m_pStore);
+#endif
     throw CRainmanException(__FILE__, __LINE__, "Cannot iterate something which is not a folder");
 }
 
@@ -598,10 +750,17 @@ IDirectoryTraverser::IIterator *CFileSystemStore::CIterator::VOpenSubDir()
 
 IFileStore::IStream *CFileSystemStore::CIteratorW::VOpenFile()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirEnt == nullptr || m_pStore == nullptr)
+        throw CRainmanException(__FILE__, __LINE__, "Handle or store invalid");
+    if (VGetType() == IDirectoryTraverser::IIterator::T_Directory)
+        throw CRainmanException(__FILE__, __LINE__, "Cannot open a folder");
+#else
     if (m_HandFD == nullptr || m_pStore == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Handle or store invalid");
     if (m_W32FD.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         throw CRainmanException(__FILE__, __LINE__, "Cannot open a folder");
+#endif
     return ((CFileSystemStore *)m_pStore)->OpenStreamW(m_wFullPath);
 }
 
@@ -624,6 +783,19 @@ void CFileSystemStore::CIteratorW::_ensureAsciiVersionOf(const wchar_t *wString,
 {
     if (sString == nullptr)
     {
+#ifdef RAINMAN_GNUC
+        std::string sUtf8;
+        try
+        {
+            sUtf8 = RainmanWideToUtf8(wString);
+        }
+        catch (const std::range_error &)
+        {
+            throw CRainmanException(__FILE__, __LINE__, "Could not convert path to UTF-8");
+        }
+        sString = new char[sUtf8.size() + 1];
+        std::memcpy(sString, sUtf8.c_str(), sUtf8.size() + 1);
+#else
         sString = new char[wcslen(wString) + 1];
         int i = -1;
         do
@@ -631,14 +803,21 @@ void CFileSystemStore::CIteratorW::_ensureAsciiVersionOf(const wchar_t *wString,
             ++i;
             sString[i] = (char)wString[i];
         } while (wString[i]);
+#endif
     }
 }
 
 const char *CFileSystemStore::CIteratorW::VGetName()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirEnt == nullptr)
+        throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
+    _ensureAsciiVersionOf(m_wFileName.c_str(), m_sFileName);
+#else
     if (m_HandFD == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
     _ensureAsciiVersionOf(m_W32FD.cFileName, m_sFileName);
+#endif
     return m_sFileName;
 }
 
@@ -676,7 +855,7 @@ tLastWriteTime CFileSystemStore::CIterator::VGetLastWriteTime()
 #ifdef RAINMAN_GNUC
     if (m_pDirEnt == 0 || m_pStore == 0)
         throw CRainmanException(__FILE__, __LINE__, "Handle or store invalid");
-    return ((CFileSystemStore *)m_pStore)->VGetLastWriteTime(m_sFullPath);
+    return ((CFileSystemStore *)m_pStore)->VGetLastWriteTime(m_sFullPathBuf.c_str());
 #else
     if (m_HandFD == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
@@ -691,6 +870,20 @@ tLastWriteTime CFileSystemStore::CIterator::VGetLastWriteTime()
 
 tLastWriteTime CFileSystemStore::CIteratorW::VGetLastWriteTime()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirEnt == nullptr || m_pStore == nullptr)
+        throw CRainmanException(__FILE__, __LINE__, "Handle or store invalid");
+    std::string sUtf8Path;
+    try
+    {
+        sUtf8Path = RainmanWideToUtf8(m_wFullPath);
+    }
+    catch (const std::range_error &)
+    {
+        throw CRainmanException(__FILE__, __LINE__, "Could not convert file path to UTF-8");
+    }
+    return GetLastWriteTime(sUtf8Path.c_str());
+#else
     if (m_HandFD == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
     tLastWriteTime oRet = m_W32FD.ftLastWriteTime.dwHighDateTime;
@@ -699,6 +892,28 @@ tLastWriteTime CFileSystemStore::CIteratorW::VGetLastWriteTime()
     oRet /= 10;
     oRet -= 0x2B6109100;
     return oRet;
+#endif
+}
+
+void CFileSystemStore::CIteratorW::RebuildFullPath(const wchar_t *sFileName)
+{
+#ifdef RAINMAN_GNUC
+    const size_t iParentLength = wcslen(m_wParentPath);
+    const size_t iNameLength = wcslen(sFileName);
+    auto pFullPath = std::make_unique<wchar_t[]>(iParentLength + iNameLength + 2);
+    wcscpy(pFullPath.get(), m_wParentPath);
+    if (iParentLength > 0 && pFullPath[iParentLength - 1] != L'/')
+        wcscat(pFullPath.get(), L"/");
+    wcscat(pFullPath.get(), sFileName);
+    delete[] m_wFullPath;
+    m_wFullPath = pFullPath.release();
+    delete[] m_sFullPath;
+    m_sFullPath = nullptr;
+    delete[] m_sFileName;
+    m_sFileName = nullptr;
+#else
+    (void)sFileName;
+#endif
 }
 
 void CFileSystemStore::CIterator::RebuildFullPath(const char *sFileName)
@@ -719,9 +934,16 @@ IDirectoryTraverser::IIterator::eErrors CFileSystemStore::CIterator::VNextItem()
     if (m_pDirEnt == 0)
         throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
 
-    if ((m_pDirEnt = readdir(m_pDirectory)) != 0)
+    do
+    {
+        m_pDirEnt = readdir(m_pDirectory);
+    } while (m_pDirEnt != nullptr &&
+             (strcmp(m_pDirEnt->d_name, ".") == 0 || strcmp(m_pDirEnt->d_name, "..") == 0));
+
+    if (m_pDirEnt != nullptr)
     {
         RebuildFullPath(m_pDirEnt->d_name);
+        return E_OK;
     }
     else
     {
@@ -756,6 +978,36 @@ IDirectoryTraverser::IIterator::eErrors CFileSystemStore::CIterator::VNextItem()
 
 IDirectoryTraverser::IIterator::eErrors CFileSystemStore::CIteratorW::VNextItem()
 {
+#ifdef RAINMAN_GNUC
+    if (m_pDirectory == nullptr)
+        throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
+    if (m_pDirEnt == nullptr)
+        return E_AtEnd;
+
+    do
+    {
+        m_pDirEnt = readdir(m_pDirectory);
+    } while (m_pDirEnt != nullptr &&
+             (strcmp(m_pDirEnt->d_name, ".") == 0 || strcmp(m_pDirEnt->d_name, "..") == 0));
+
+    if (m_pDirEnt == nullptr)
+    {
+        closedir(m_pDirectory);
+        m_pDirectory = nullptr;
+        return E_AtEnd;
+    }
+
+    try
+    {
+        m_wFileName = RainmanUtf8ToWide(m_pDirEnt->d_name);
+    }
+    catch (const std::range_error &)
+    {
+        throw CRainmanException(__FILE__, __LINE__, "Could not convert directory entry name from UTF-8");
+    }
+    RebuildFullPath(m_wFileName.c_str());
+    return E_OK;
+#else
     if (m_HandFD == nullptr)
         throw CRainmanException(__FILE__, __LINE__, "Invalid handle");
     if (FindNextFileW(m_HandFD, &m_W32FD) == TRUE)
@@ -792,6 +1044,7 @@ IDirectoryTraverser::IIterator::eErrors CFileSystemStore::CIteratorW::VNextItem(
             throw CRainmanException(__FILE__, __LINE__, "Unknown error");
         }
     }
+#endif
 }
 
 IDirectoryTraverser::IIterator *CFileSystemStore::VIterate(const char *sPath) { return new CIterator(sPath, this); }

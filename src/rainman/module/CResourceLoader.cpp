@@ -27,13 +27,45 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/core/Internal_Util.h"
 #include "rainman/core/Exception.h"
 #include "rainman/core/RainmanLog.h"
+#include <algorithm>
 #include <future>
 #include <optional>
 #include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
+#ifndef RAINMAN_GNUC
 #include <direct.h>
+#endif
+
+static void NormalizeNativePath(std::string &sPath)
+{
+#ifdef RAINMAN_GNUC
+    std::replace(sPath.begin(), sPath.end(), '\\', '/');
+#else
+    (void)sPath;
+#endif
+}
+
+static int MakeDirectory(const char *sPath)
+{
+#ifdef RAINMAN_GNUC
+    std::string sNativePath = sPath;
+    NormalizeNativePath(sNativePath);
+    std::error_code ec;
+    std::filesystem::create_directories(sNativePath, ec);
+    if (ec)
+    {
+        const std::string sErrorMessage =
+            "Could not create directory '" + sNativePath + "': " + ec.message();
+        throw CRainmanException(__FILE__, __LINE__, sErrorMessage.c_str());
+    }
+    return 0;
+#else
+    return _mkdir(sPath);
+#endif
+}
 
 // -- Parallel archive preloading infrastructure (Phase J) --
 
@@ -221,6 +253,7 @@ void CResourceLoader::LoadArchivesParallel(std::vector<ArchiveTask> &tasks, CMod
     futures.reserve(tasks.size());
     for (auto &task : tasks)
     {
+        NormalizeNativePath(task.archivePath);
         futures.push_back(pool.Submit(&CResourceLoader::PreloadSga, module.m_pFSS, task.archivePath.c_str(),
                                       module.m_eModuleType, module.m_sCohThisModFolder.c_str(),
                                       module.m_sApplicationPath.c_str(), module.m_saScenarioPackRootFolder.c_str()));
@@ -409,7 +442,7 @@ void CResourceLoader::LoadUcsFilesParallel(CModuleFile &module, IDirectoryTraver
     for (const auto &fileInfo : files)
     {
         futures.push_back(pool.Submit(
-            [&fileInfo, pFSS = module.m_pFSS]() -> UcsLoadResult
+            [fileInfo, pFSS = module.m_pFSS]() -> UcsLoadResult
             {
                 UcsLoadResult result;
                 result.name = fileInfo.name;
@@ -551,10 +584,11 @@ void CResourceLoader::LoadFoldersParallel(std::vector<FolderTask> &tasks, CModul
     std::vector<std::future<ScanResult>> futures;
     futures.reserve(tasks.size());
 
-    for (const auto &task : tasks)
+    for (auto &task : tasks)
     {
+        NormalizeNativePath(task.folderPath);
         futures.push_back(pool.Submit(
-            [&task, pFSS = module.m_pFSS]() -> ScanResult
+            [task, pFSS = module.m_pFSS]() -> ScanResult
             {
                 ScanResult result;
                 IDirectoryTraverser::IIterator *pDirItr = nullptr;
@@ -593,7 +627,7 @@ void CResourceLoader::LoadFoldersParallel(std::vector<FolderTask> &tasks, CModul
                 RAINMAN_LOG_WARN("Default write folder '{}' does not exist on disk — creating and registering for "
                                  "save support",
                                  task.folderPath);
-                _mkdir(task.folderPath.c_str());
+                MakeDirectory(task.folderPath.c_str());
                 result.snapshot.directoryPath = task.folderPath;
                 result.snapshot.isFile = false;
                 result.snapshot.lastWriteTime = 0;
@@ -683,80 +717,203 @@ bool CResourceLoader::IsToBeLoaded(const CModuleFile &module, CModuleFile::CCohD
 
 void CResourceLoader::LoadDataGeneric(CModuleFile &module, CALLBACK_ARG)
 {
-    const std::string sPipelineFile = module.m_sApplicationPath + "pipeline.ini";
-    std::unique_ptr<FILE, decltype(&fclose)> fModule(fopen(sPipelineFile.c_str(), "rb"), &fclose);
-    if (!fModule && !module.m_sGameInstallPath.empty())
-    {
-        fModule.reset(fopen((module.m_sGameInstallPath + "pipeline.ini").c_str(), "rb"));
-    }
-    if (!fModule)
-    {
-        return;
-    }
-    CallCallback(THE_CALLBACK, "Parsing file \'pipeline.ini\'");
-
     const std::string sSection =
         "project:" + (module.m_sGameInstallPath.empty() ? module.m_metadata.m_sModFolder : module.m_sFileMapName);
     std::string sDataGenericValue;
-    bool bInSection = false;
-    while (!feof(fModule.get()))
+    std::string sPipelineFile;
+
+#ifdef RAINMAN_GNUC
+    std::vector<std::string> pipelineFiles;
+    const CModuleFile *pPipelineModule = &module;
+    while (pPipelineModule->m_pParentModule != nullptr)
     {
-        std::unique_ptr<char[]> sLine(Util_fgetline(fModule.get()));
-        if (!sLine)
+        pPipelineModule = pPipelineModule->m_pParentModule;
+    }
+    pipelineFiles.push_back(pPipelineModule->m_sApplicationPath + "pipeline.ini");
+    const std::string sModulePipelineFile = module.m_sApplicationPath + "pipeline.ini";
+    if (std::find(pipelineFiles.begin(), pipelineFiles.end(), sModulePipelineFile) == pipelineFiles.end())
+    {
+        pipelineFiles.push_back(sModulePipelineFile);
+    }
+    if (!module.m_sGameInstallPath.empty())
+    {
+        const std::string sInstallPipelineFile = module.m_sGameInstallPath + "pipeline.ini";
+        if (std::find(pipelineFiles.begin(), pipelineFiles.end(), sInstallPipelineFile) == pipelineFiles.end())
         {
-            throw CRainmanException(__FILE__, __LINE__, "Error reading from file");
-        }
-        char *sCommentBegin = strchr(sLine.get(), ';');
-        if (sCommentBegin)
-        {
-            *sCommentBegin = 0;
-        }
-        char *sEqualsChar = strchr(sLine.get(), '=');
-        if (sEqualsChar)
-        {
-            char *sKey = sLine.get();
-            char *sValue = sEqualsChar + 1;
-            *sEqualsChar = 0;
-            Util_TrimWhitespace(&sKey);
-            Util_TrimWhitespace(&sValue);
-            if (bInSection && stricmp(sKey, "DataGeneric") == 0)
-            {
-                sDataGenericValue = sValue;
-            }
-        }
-        else
-        {
-            char *sLeftBraceChar = strchr(sLine.get(), '[');
-            char *sRightBraceChar = sLeftBraceChar ? strchr(sLeftBraceChar, ']') : nullptr;
-            if (sLeftBraceChar && sRightBraceChar)
-            {
-                *sRightBraceChar = 0;
-                ++sLeftBraceChar;
-                bInSection = stricmp(sLeftBraceChar, sSection.c_str()) == 0;
-            }
+            pipelineFiles.push_back(sInstallPipelineFile);
         }
     }
+#else
+    std::vector<std::string> pipelineFiles{module.m_sApplicationPath + "pipeline.ini"};
+    if (!module.m_sGameInstallPath.empty())
+    {
+        const std::string sInstallPipelineFile = module.m_sGameInstallPath + "pipeline.ini";
+        if (std::find(pipelineFiles.begin(), pipelineFiles.end(), sInstallPipelineFile) == pipelineFiles.end())
+        {
+            pipelineFiles.push_back(sInstallPipelineFile);
+        }
+    }
+#endif
 
-    if (!sDataGenericValue.empty())
+    bool bReportedPipeline = false;
+    for (const auto &pipelineFile : pipelineFiles)
+    {
+        std::unique_ptr<FILE, decltype(&fclose)> fModule(fopen(pipelineFile.c_str(), "rb"), &fclose);
+        if (!fModule)
+        {
+            continue;
+        }
+        if (!bReportedPipeline)
+        {
+            CallCallback(THE_CALLBACK, "Parsing file \'pipeline.ini\'");
+            bReportedPipeline = true;
+        }
+
+        bool bInSection = false;
+        while (!feof(fModule.get()))
+        {
+            std::unique_ptr<char[]> sLine(Util_fgetline(fModule.get()));
+            if (!sLine)
+            {
+                throw CRainmanException(__FILE__, __LINE__, "Error reading from file");
+            }
+            char *sCommentBegin = strchr(sLine.get(), ';');
+            if (sCommentBegin)
+            {
+                *sCommentBegin = 0;
+            }
+            char *sEqualsChar = strchr(sLine.get(), '=');
+            if (sEqualsChar)
+            {
+                char *sKey = sLine.get();
+                char *sValue = sEqualsChar + 1;
+                *sEqualsChar = 0;
+                Util_TrimWhitespace(&sKey);
+                Util_TrimWhitespace(&sValue);
+                if (bInSection && stricmp(sKey, "DataGeneric") == 0)
+                {
+                    sDataGenericValue = sValue;
+                }
+            }
+            else
+            {
+                char *sLeftBraceChar = strchr(sLine.get(), '[');
+                char *sRightBraceChar = sLeftBraceChar ? strchr(sLeftBraceChar, ']') : nullptr;
+                if (sLeftBraceChar && sRightBraceChar)
+                {
+                    *sRightBraceChar = 0;
+                    ++sLeftBraceChar;
+                    bInSection = stricmp(sLeftBraceChar, sSection.c_str()) == 0;
+                }
+            }
+        }
+        if (!sDataGenericValue.empty())
+        {
+            sPipelineFile = pipelineFile;
+            break;
+        }
+#ifndef RAINMAN_GNUC
+        break;
+#endif
+    }
+
+    if (sDataGenericValue.empty())
+    {
+        return;
+    }
+    else
     {
         std::string sDataGenericFullPath;
+#ifdef RAINMAN_GNUC
+        NormalizeNativePath(sDataGenericValue);
+#endif
         const bool bAppPath =
             strnicmp(sDataGenericValue.c_str(), "%app%", 5) == 0 &&
             (sDataGenericValue.size() == 5 || sDataGenericValue[5] == '\\' || sDataGenericValue[5] == '/');
         if (bAppPath)
         {
             const auto iRelative = sDataGenericValue.find_first_not_of("\\/", 5);
+#ifdef RAINMAN_GNUC
+            std::filesystem::path appPath = module.m_sGameInstallPath.empty()
+                                                ? std::filesystem::path(sPipelineFile).parent_path()
+                                                : std::filesystem::path(module.m_sGameInstallPath);
+            if (iRelative != std::string::npos)
+            {
+                appPath /= sDataGenericValue.substr(iRelative);
+            }
+            sDataGenericFullPath = appPath.string();
+#else
             sDataGenericFullPath =
                 module.m_sGameInstallPath.empty() ? module.m_sApplicationPath : module.m_sGameInstallPath;
             if (iRelative != std::string::npos)
             {
                 sDataGenericFullPath += sDataGenericValue.substr(iRelative);
             }
+#endif
         }
         else
         {
+#ifdef RAINMAN_GNUC
+            sDataGenericFullPath = (std::filesystem::path(sPipelineFile).parent_path() / sDataGenericValue).string();
+#else
             sDataGenericFullPath = module.m_sApplicationPath + sDataGenericValue;
+#endif
         }
+#ifdef RAINMAN_GNUC
+        NormalizeNativePath(sDataGenericFullPath);
+        std::error_code ec;
+        if (!std::filesystem::is_directory(sDataGenericFullPath, ec))
+        {
+            if (ec && ec != std::errc::no_such_file_or_directory)
+            {
+                throw CRainmanException(nullptr, __FILE__, __LINE__, "Cannot inspect generic data folder '%s': %s",
+                                        sDataGenericFullPath.c_str(), ec.message().c_str());
+            }
+
+            std::filesystem::path fallbackPath(sDataGenericFullPath);
+            while (!fallbackPath.empty() && stricmp(fallbackPath.filename().c_str(), "DataGeneric") != 0)
+            {
+                const std::filesystem::path parentPath = fallbackPath.parent_path();
+                if (parentPath == fallbackPath)
+                {
+                    fallbackPath.clear();
+                    break;
+                }
+                fallbackPath = parentPath;
+            }
+
+            if (!fallbackPath.empty())
+            {
+                ec.clear();
+                const bool hasGenericAttrib =
+                    std::filesystem::is_directory(fallbackPath / "attrib", ec);
+                if (ec && ec != std::errc::no_such_file_or_directory)
+                {
+                    throw CRainmanException(nullptr, __FILE__, __LINE__, "Cannot inspect generic data folder '%s': %s",
+                                            fallbackPath.c_str(), ec.message().c_str());
+                }
+                if (hasGenericAttrib)
+                {
+                    RAINMAN_LOG_WARN("Configured generic data folder '{}' is missing; using Linux install layout '{}'",
+                                     sDataGenericFullPath, fallbackPath.string());
+                    sDataGenericFullPath = fallbackPath.string();
+                }
+            }
+
+            ec.clear();
+            if (!std::filesystem::is_directory(sDataGenericFullPath, ec))
+            {
+                if (ec && ec != std::errc::no_such_file_or_directory)
+                {
+                    throw CRainmanException(nullptr, __FILE__, __LINE__,
+                                            "Cannot inspect generic data folder '%s': %s",
+                                            sDataGenericFullPath.c_str(), ec.message().c_str());
+                }
+                RAINMAN_LOG_WARN("Configured generic data folder '{}' from '{}' does not exist; skipping it",
+                                 sDataGenericFullPath, sPipelineFile);
+            }
+        }
+#endif
         const bool bDefaultWrite =
             module.m_pParentModule == nullptr && !(bAppPath && !module.m_sGameInstallPath.empty());
         CResourceLoader::DoLoadFolder(module, sDataGenericFullPath.c_str(), bDefaultWrite, 99, "Generic", "DataGeneric",
@@ -845,6 +1002,7 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
             sUcsPath = std::string(module.m_sApplicationPath) + module.m_metadata.m_sModFolder + "\\Locale\\" +
                        module.m_sLocale;
         }
+        NormalizeNativePath(sUcsPath);
 
         IDirectoryTraverser::IIterator *pItr = nullptr;
         try
@@ -998,6 +1156,7 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
             else if (module.m_eModuleType == CModuleFile::MT_CompanyOfHeroesEarly)
             {
                 std::string sArchivesPath = module.m_sApplicationPath + module.m_metadata.m_sModFolder + "\\Archives";
+                NormalizeNativePath(sArchivesPath);
                 IDirectoryTraverser::IIterator *pItr = nullptr;
                 try
                 {
@@ -1143,14 +1302,25 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
     {
         if (!module.m_sScenarioPackRootFolder.empty() && !module.m_metadata.m_sScenarioPackFolder.empty())
         {
+#ifdef RAINMAN_GNUC
+            std::wstring sArchivesPath = module.m_sScenarioPackRootFolder;
+            sArchivesPath += L"/";
+            sArchivesPath.append(module.m_metadata.m_sScenarioPackFolder.begin(),
+                                 module.m_metadata.m_sScenarioPackFolder.end());
+#else
             auto *sArchivesPath = new wchar_t[module.m_sScenarioPackRootFolder.size() +
                                               module.m_metadata.m_sScenarioPackFolder.size() + 2];
             swprintf(sArchivesPath, L"%s\\%S", module.m_sScenarioPackRootFolder.c_str(),
                      module.m_metadata.m_sScenarioPackFolder.c_str());
+#endif
             IDirectoryTraverser::IIterator *pItr = nullptr;
             try
             {
+#ifdef RAINMAN_GNUC
+                pItr = module.m_pFSS->IterateW(sArchivesPath.c_str());
+#else
                 pItr = module.m_pFSS->IterateW(sArchivesPath);
+#endif
             }
             catch (const CRainmanException &e)
             {
@@ -1167,12 +1337,16 @@ void CResourceLoader::Load(CModuleFile &module, unsigned long iReloadWhat, unsig
                 {
                     PAUSE_THROW(e, __FILE__, __LINE__, "Error loading map archives from \'%S\'", sArchivesPath);
                     delete pItr;
+#ifndef RAINMAN_GNUC
                     delete[] sArchivesPath;
+#endif
                     UNPAUSE_THROW;
                 }
                 delete pItr;
             }
+#ifndef RAINMAN_GNUC
             delete[] sArchivesPath;
+#endif
         }
     }
     if (iReloadWhat & CModuleFile::RR_RequiredMods)
@@ -1288,6 +1462,10 @@ void CResourceLoader::DoLoadFolder(CModuleFile &module, const char *sFullPath, b
                                    unsigned short iNum, const char *sTOC, const char *sUiName, CALLBACK_ARG,
                                    bool *bIsWritable)
 {
+    std::string sNativeFullPath = sFullPath;
+    NormalizeNativePath(sNativeFullPath);
+    sFullPath = sNativeFullPath.c_str();
+
     if (bIsWritable != nullptr)
     {
         *bIsWritable = false;
@@ -1359,9 +1537,9 @@ void CResourceLoader::DoLoadFolder(CModuleFile &module, const char *sFullPath, b
         {
             RAINMAN_LOG_WARN("Default write folder '{}' does not exist — creating and registering for save support",
                              sFullPath);
-            _mkdir(sFullPath);
+            MakeDirectory(sFullPath);
             CFileMap::DirEntry emptySnapshot;
-            emptySnapshot.directoryPath = sFullPath;
+            emptySnapshot.directoryPath = sNativeFullPath;
             emptySnapshot.isFile = false;
             emptySnapshot.lastWriteTime = 0;
             void *pSrc = module.m_pNewFileMap->RegisterSource(

@@ -24,6 +24,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/localization/CUcsFile.h"
 #include "rainman/module/CFileMap.h"
 #include "rainman/io/CFileSystemStore.h"
+#include <algorithm>
+#include <cstring>
 #include <memory>
 #include "rainman/core/Internal_Util.h"
 #include "rainman/core/Exception.h"
@@ -459,8 +461,13 @@ void CModuleFile::LoadModuleFile(const char *sFileName, CALLBACK_ARG)
     RAINMAN_LOG_INFO("CModuleFile::LoadModuleFile(\"{}\")", sFileName ? sFileName : "(null)");
     _Clean();
 
+    std::string sNativeModulePath = sFileName ? sFileName : "";
+#ifdef RAINMAN_GNUC
+    std::replace(sNativeModulePath.begin(), sNativeModulePath.end(), '\\', '/');
+#endif
+
     // Set m_sApplicationPath and m_sFilename from sFileName
-    m_sApplicationPath = sFileName;
+    m_sApplicationPath = sNativeModulePath;
     auto slashPos = m_sApplicationPath.find_last_of("\\/");
     if (slashPos != std::string::npos)
     {
@@ -476,7 +483,7 @@ void CModuleFile::LoadModuleFile(const char *sFileName, CALLBACK_ARG)
     }
 
     // Parse the module file
-    auto result = CModuleParser::Parse(sFileName);
+    auto result = CModuleParser::Parse(sNativeModulePath.c_str());
     m_metadata = std::move(result.metadata);
     m_eModuleType = static_cast<eModuleType>(result.iModuleType);
 
@@ -606,9 +613,16 @@ const char *CModuleFile::GetApplicationPath() const { return m_sApplicationPath.
 void CModuleFile::SetGameInstallPath(const char *sPath)
 {
     m_sGameInstallPath = sPath ? sPath : "";
+#ifdef RAINMAN_GNUC
+    std::replace(m_sGameInstallPath.begin(), m_sGameInstallPath.end(), '\\', '/');
+#endif
     if (!m_sGameInstallPath.empty() && m_sGameInstallPath.back() != '\\' && m_sGameInstallPath.back() != '/')
     {
+#ifdef RAINMAN_GNUC
+        m_sGameInstallPath += '/';
+#else
         m_sGameInstallPath += '\\';
+#endif
     }
 }
 
@@ -803,6 +817,12 @@ size_t CModuleFile::GetArchiveFullPath(size_t iId, char *sOutput)
             *sOutput = 0;
         }
     }
+#ifdef RAINMAN_GNUC
+    if (sOutput)
+    {
+        std::replace(sOutput, sOutput + std::strlen(sOutput), '\\', '/');
+    }
+#endif
     return iLen;
 }
 

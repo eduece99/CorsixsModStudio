@@ -118,7 +118,7 @@ frmSgaMake::frmSgaMake()
     pTopSizer->Add(SBT(new wxStaticText(this, -1, AppStr(sgapack_toc)), AppStr(sgapack_toc_help)), 0,
                    wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxFIXED_MINSIZE | wxALL, 3);
     pTopSizer->Add(SBT(m_pTocName = new wxComboBox(this, IDC_TocName, wxT("Data"), wxDefaultPosition,
-                                                   FromDIP(wxSize(300, -1)), lstToCs),
+                                               wxSize(FromDIP(300), wxDefaultCoord), lstToCs),
                        AppStr(sgapack_toc_help)),
                    1, wxALL | wxEXPAND, 3);
     pTopSizer->AddSpacer(0);

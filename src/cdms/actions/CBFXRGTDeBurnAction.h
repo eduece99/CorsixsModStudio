@@ -27,6 +27,7 @@
 #include "actions/CBfxToLuaDumpAction.h"
 #include <rainman/formats/CRgtFile.h>
 #include <rainman/core/RainmanLog.h>
+#include <rainman/core/WideFile.h>
 #include <memory>
 #include <wx/progdlg.h>
 #include <zlib.h>
@@ -125,7 +126,7 @@ class CBFXRGTDeBurnAction : public frmFiles::IHandler
         L = lua_open();
         luaopen_base(L);
 
-        FILE *f = _wfopen(AppStr(app_bfxmapfile), wxT("rb"));
+        FILE *f = RainmanFOpen(AppStr(app_bfxmapfile), L"rb");
         if (!f)
         {
             CDMS_LOG_WARN("Could not open BFX map file");

@@ -43,6 +43,7 @@ extern "C"
 #include <wx/filename.h>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 #include "common/Common.h"
 #include <cstdint>
 #include <rainman/core/RainmanLog.h>
@@ -1256,7 +1257,7 @@ void frmScarEditor::GoToDefinition()
 
 void frmScarEditor::LoadFromDiskReadOnly(const wxString &sPath, int iGotoLine)
 {
-    std::ifstream file(sPath.ToStdWstring(), std::ios::binary);
+    std::ifstream file(std::filesystem::path(sPath.ToStdWstring()), std::ios::binary);
     if (!file.is_open())
     {
         ThemeColours::ShowMessageBox(wxT("Cannot open file: ") + sPath, wxT("Go to Definition"), wxICON_ERROR, this);

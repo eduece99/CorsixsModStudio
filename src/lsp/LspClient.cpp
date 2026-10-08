@@ -20,6 +20,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "lsp/LspClient.h"
 #include <rainman/core/RainmanLog.h>
 #include <sstream>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace lsp
 {
@@ -193,7 +196,13 @@ bool CLspClient::RunInitHandshake(const std::string &workspaceRoot)
           {"publishDiagnostics", {{"relatedInformation", false}}}}}};
 
     nlohmann::json initParams = {
-        {"processId", static_cast<int>(GetCurrentProcessId())},
+        {"processId",
+#ifdef _WIN32
+         static_cast<int>(GetCurrentProcessId())
+#else
+         static_cast<int>(getpid())
+#endif
+        },
         {"capabilities", capabilities},
         {"rootUri", workspaceRoot.empty() ? nlohmann::json(nullptr) : nlohmann::json("file:///" + workspaceRoot)}};
 

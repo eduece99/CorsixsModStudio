@@ -19,12 +19,18 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#else
+#include <sys/types.h>
+using DWORD = std::uint32_t;
+#endif
 
 namespace lsp
 {
@@ -73,9 +79,15 @@ class CProcess
   private:
     void Cleanup();
 
+#ifdef _WIN32
     HANDLE m_hProcess = INVALID_HANDLE_VALUE;
     HANDLE m_hStdinWrite = INVALID_HANDLE_VALUE;
     HANDLE m_hStdoutRead = INVALID_HANDLE_VALUE;
+#else
+    mutable pid_t m_iProcess = -1;
+    int m_iStdinWrite = -1;
+    int m_iStdoutRead = -1;
+#endif
 };
 
 } // namespace lsp

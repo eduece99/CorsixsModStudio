@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <string>
 #include <vector>
 
@@ -40,7 +40,7 @@ class MapSnapshotTest : public ::testing::Test
     void SetUp() override
     {
         tempDir = std::filesystem::temp_directory_path() /
-                  ("mapsnapshot_test_" + std::to_string(_getpid()) + "_" +
+                  ("mapsnapshot_test_" + std::to_string(GetTestProcessId()) + "_" +
                    std::to_string(reinterpret_cast<uintptr_t>(this)));
         std::filesystem::create_directories(tempDir);
     }
@@ -375,7 +375,7 @@ TEST(VReadDirect, ReadsDirectlyIntoDestinationBuffer)
     // Verify that VRead reads into the provided destination buffer correctly
     // (no intermediate temp buffer allocation)
     auto tempDir = std::filesystem::temp_directory_path() /
-                   ("vread_test_" + std::to_string(_getpid()));
+                   ("vread_test_" + std::to_string(GetTestProcessId()));
     std::filesystem::create_directories(tempDir);
 
     // Create a test file with known content
@@ -413,7 +413,7 @@ TEST(VReadDirect, ReadsDirectlyIntoDestinationBuffer)
 TEST(VReadDirect, LargeReadWorksCorrectly)
 {
     auto tempDir = std::filesystem::temp_directory_path() /
-                   ("vread_large_" + std::to_string(_getpid()));
+                   ("vread_large_" + std::to_string(GetTestProcessId()));
     std::filesystem::create_directories(tempDir);
 
     auto filePath = tempDir / "large.bin";

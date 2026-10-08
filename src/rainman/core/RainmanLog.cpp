@@ -24,7 +24,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <filesystem>
 #include <vector>
+#ifdef _WIN32
 #include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 bool RainmanLog::s_bInitialised = false;
 
@@ -41,7 +45,12 @@ void RainmanLog::init(const char *sLogDir)
     pConsoleSink->set_level(spdlog::level::debug);
 
     // Include PID in log filename so parallel test processes don't collide
-    std::string sLogPath = std::string(sLogDir) + "/corsixmodstudio_" + std::to_string(_getpid()) + ".log";
+#ifdef _WIN32
+    const auto iProcessId = _getpid();
+#else
+    const auto iProcessId = getpid();
+#endif
+    std::string sLogPath = std::string(sLogDir) + "/corsixmodstudio_" + std::to_string(iProcessId) + ".log";
     constexpr std::size_t iMaxSize = static_cast<std::size_t>(5) * 1024 * 1024; // 5 MB
     constexpr std::size_t iMaxFiles = 3;
 

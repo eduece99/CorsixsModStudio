@@ -8,10 +8,23 @@
 #include <string>
 #include <optional>
 
+class LuaReferenceMemoryStore : public CMemoryStore
+{
+  public:
+    std::string requestedPath;
+    std::string parentScript;
+
+    IStream *VOpenStream(const char *sFile) override
+    {
+        requestedPath = sFile;
+        return OpenStreamExt(parentScript.data(), static_cast<unsigned long>(parentScript.size()), false);
+    }
+};
+
 class LuaFile2Test : public ::testing::Test {
 protected:
 	CLuaFile2 lua;
-	CMemoryStore store;
+	LuaReferenceMemoryStore store;
 
 	void SetUp() override { store.VInit(); }
 
@@ -174,6 +187,19 @@ TEST_F(LuaFile2Test, SetRootFolder)
 	// Should not crash — just stores the folder
 	lua.newFile("test.lua");
 	SUCCEED();
+}
+
+TEST_F(LuaFile2Test, ParentReferenceUsesNativeSeparatorsOnLinux)
+{
+    store.parentScript = "GameData = { health = 100 }";
+    lua.setRootFolder("generic\\attrib\\");
+    loadScript("GameData = Inherit(\"parent.lua\")");
+
+#ifdef RAINMAN_GNUC
+    EXPECT_EQ(store.requestedPath, "generic/attrib/parent.lua");
+#else
+    EXPECT_EQ(store.requestedPath, "generic\\attrib\\parent.lua");
+#endif
 }
 
 TEST_F(LuaFile2Test, LoadInvalidSyntaxThrows)

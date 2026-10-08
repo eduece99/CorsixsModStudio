@@ -5,9 +5,10 @@
 #include <gtest/gtest.h>
 #include "frame/RelicToolResolver.h"
 #include <wx/dir.h>
+#include <wx/file.h>
 #include <wx/filename.h>
 #include <fstream>
-#include <process.h>
+#include "../common/TestProcessId.h"
 
 class RelicToolResolverTest : public ::testing::Test
 {
@@ -16,7 +17,7 @@ class RelicToolResolverTest : public ::testing::Test
 
     void SetUp() override
     {
-        m_sTempDir = wxFileName::GetTempDir() + wxString::Format(wxT("\\RelicToolResolverTest_%d"), _getpid());
+        m_sTempDir = wxFileName::GetTempDir() + wxString::Format(wxT("\\RelicToolResolverTest_%d"), GetTestProcessId());
         wxFileName::Mkdir(m_sTempDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
     }
 
@@ -113,7 +114,9 @@ TEST_F(RelicToolResolverTest, UsesProjectDirectoryWhenModuleHasPipeline)
 {
     const wxString sProject = m_sTempDir + wxT("\\My Mod");
     wxFileName::Mkdir(sProject, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-    std::ofstream((sProject + wxT("\\pipeline.ini")).ToStdWstring()) << "[project:MyMod]\n";
+    wxFile oPipeline(sProject + wxT("\\pipeline.ini"), wxFile::write);
+    ASSERT_TRUE(oPipeline.IsOpened());
+    ASSERT_TRUE(oPipeline.Write("[project:MyMod]\n"));
     const wxString sExe = m_sTempDir + wxT("\\ObjectEditor.exe");
     EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, sProject + wxT("\\MyMod.module")), sProject);
     EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, sProject + wxT("\\missing\\other.module")), m_sTempDir);
@@ -125,7 +128,9 @@ TEST_F(RelicToolResolverTest, AudioEditorReceivesModAssistantWorkingDirectory)
     const wxString project = m_sTempDir + wxT("\\My Project");
     const wxString mod = project + wxT("\\Mod");
     wxFileName::Mkdir(mod, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-    std::ofstream((project + wxT("\\pipeline.ini")).ToStdWstring()) << "[project:MyProject]\n";
+    wxFile oPipeline(project + wxT("\\pipeline.ini"), wxFile::write);
+    ASSERT_TRUE(oPipeline.IsOpened());
+    ASSERT_TRUE(oPipeline.Write("[project:MyProject]\n"));
     const wxString module = project + wxT("\\MyProject.module");
 
     EXPECT_EQ(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"), module, wxT("Mod")),

@@ -45,7 +45,11 @@ class CProgressChannel
         Usage: pass RainmanCallback as the callback function and a
         CProgressChannel* as the tag parameter.
     */
+#ifdef _WIN32
     static void __cdecl RainmanCallback(const char *sMsg, void *pTag);
+#else
+    static void RainmanCallback(const char *sMsg, void *pTag);
+#endif
 
   private:
     ProgressCallback m_fnOnProgress;

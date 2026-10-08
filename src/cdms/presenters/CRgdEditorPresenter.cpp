@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <string_view>
 
 extern "C"
 {
@@ -68,12 +69,20 @@ unsigned long CRgdEditorPresenter::ComputeMultiHash(const wchar_t *sName)
 
 std::string CRgdEditorPresenter::NormaliseLua2SavePath(const char *sFilePath)
 {
+    const std::string_view sPath(sFilePath);
+    const auto startsWithIgnoringCase = [sPath](std::string_view sPrefix)
+    {
+        return sPath.size() >= sPrefix.size() &&
+               std::equal(sPrefix.begin(), sPrefix.end(), sPath.begin(), [](unsigned char cLeft, unsigned char cRight)
+                          { return std::tolower(cLeft) == std::tolower(cRight); });
+    };
+
     size_t iChop = 0;
-    if (strnicmp(sFilePath, "Generic\\Attrib\\", 15) == 0)
+    if (startsWithIgnoringCase("Generic\\Attrib\\"))
         iChop = 15;
-    else if (strnicmp(sFilePath, "Data\\Attrib\\", 12) == 0)
+    else if (startsWithIgnoringCase("Data\\Attrib\\"))
         iChop = 12;
-    else if (strnicmp(sFilePath, "Attrib\\Attrib\\", 14) == 0)
+    else if (startsWithIgnoringCase("Attrib\\Attrib\\"))
         iChop = 14;
 
     std::string sResult;

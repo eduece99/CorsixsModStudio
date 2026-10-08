@@ -35,7 +35,7 @@ frmDeArchive::frmDeArchive(wxWindow *pParent, const wxString &sModulePath, const
 {
     auto *pSizer = new wxBoxSizer(wxVERTICAL);
     auto *pModLabel = new wxStaticText(this, wxID_ANY, wxT("Mod folder: ") + m_sModFolder, wxDefaultPosition,
-                                       FromDIP(wxSize(680, -1)), wxST_ELLIPSIZE_MIDDLE);
+                                       wxSize(FromDIP(680), wxDefaultCoord), wxST_ELLIPSIZE_MIDDLE);
     pModLabel->SetToolTip(m_sModFolder);
     pSizer->Add(pModLabel, 0, wxEXPAND | wxALL, 6);
     pSizer->Add(new wxStaticText(this, wxID_ANY, wxT("Archive configuration (.sgaconfig):")), 0, wxLEFT, 6);

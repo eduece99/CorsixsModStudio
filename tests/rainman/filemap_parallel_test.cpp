@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <string>
 #include <thread>
 #include <vector>
@@ -37,7 +37,7 @@ class FileMapParallelTest : public ::testing::Test
     void SetUp() override
     {
         tempDir = std::filesystem::temp_directory_path() /
-                  ("filemap_parallel_test_" + std::to_string(_getpid()) + "_" +
+                  ("filemap_parallel_test_" + std::to_string(GetTestProcessId()) + "_" +
                    std::to_string(reinterpret_cast<uintptr_t>(this)));
         std::filesystem::create_directories(tempDir);
     }

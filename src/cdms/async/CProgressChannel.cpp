@@ -28,7 +28,11 @@ void CProgressChannel::Report(const std::string &sMessage)
     }
 }
 
+#ifdef _WIN32
 void __cdecl CProgressChannel::RainmanCallback(const char *sMsg, void *pTag)
+#else
+void CProgressChannel::RainmanCallback(const char *sMsg, void *pTag)
+#endif
 {
     auto *pChannel = static_cast<CProgressChannel *>(pTag);
     if (pChannel && sMsg)

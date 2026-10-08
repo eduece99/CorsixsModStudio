@@ -116,25 +116,24 @@ static bool CallbackLoad(void *pTag, const char *sFile)
     auto *pCtx = static_cast<MacroCallbackContext *>(pTag);
     if (!pCtx->bAllowLoad)
     {
-        char *sFile2 = _strdup(sFile);
-        for (char *s = sFile2; *s; ++s)
+        std::string sFile2(sFile);
+        for (char &s : sFile2)
         {
-            if (*s == '/')
-                *s = '\\';
+            if (s == '/')
+                s = '\\';
         }
         unsigned long iHashRoot =
-            crc32_case_idt(0, (const unsigned char *)sFile2, std::min(pCtx->iPathLen, (unsigned long)strlen(sFile2)));
+            crc32_case_idt(0, reinterpret_cast<const unsigned char *>(sFile2.c_str()),
+                           std::min(pCtx->iPathLen, static_cast<unsigned long>(sFile2.size())));
         if (iHashRoot != pCtx->iPathHash)
         {
             if (!(pCtx->bAllowLoad = RequestPermissionFromMainThread(
                       pCtx,
                       wxT("to load RGD files from locations outside of the folder that the macro is being run over"))))
             {
-                free(sFile2);
                 return false;
             }
         }
-        free(sFile2);
     }
     return true;
 }
@@ -142,38 +141,37 @@ static bool CallbackLoad(void *pTag, const char *sFile)
 static bool CallbackSave(void *pTag, const char *sFile)
 {
     auto *pCtx = static_cast<MacroCallbackContext *>(pTag);
-    char *sFile2 = _strdup(sFile);
-    for (char *s = sFile2; *s; ++s)
+    std::string sFile2(sFile);
+    for (char &s : sFile2)
     {
-        if (*s == '/')
-            *s = '\\';
+        if (s == '/')
+            s = '\\';
     }
 
     if (!pCtx->bAllowSave)
     {
-        unsigned long iHashRoot =
-            crc32_case_idt(0, (const unsigned char *)sFile2, std::min(pCtx->iPathLen, (unsigned long)strlen(sFile2)));
+        unsigned long iHashRoot = crc32_case_idt(0, reinterpret_cast<const unsigned char *>(sFile2.c_str()),
+                                                 std::min(pCtx->iPathLen, static_cast<unsigned long>(sFile2.size())));
         if (iHashRoot != pCtx->iPathHash)
         {
             if (!(pCtx->bAllowSave = RequestPermissionFromMainThread(
                       pCtx,
                       wxT("to save RGD files to locations outside of the folder that the macro is being run over"))))
             {
-                free(sFile2);
                 return false;
             }
         }
     }
 
-    char *sSlashLoc = strrchr(sFile2, '\\');
-    if (sSlashLoc)
-        *sSlashLoc = 0;
+    const size_t iSlashLocation = sFile2.find_last_of('\\');
+    if (iSlashLocation != std::string::npos)
+        sFile2.resize(iSlashLocation);
 
-    unsigned long iHash = crc32_case_idt(0, (const unsigned char *)sFile2, (unsigned int)strlen(sFile2));
+    unsigned long iHash =
+        crc32_case_idt(0, reinterpret_cast<const unsigned char *>(sFile2.c_str()), static_cast<unsigned int>(sFile2.size()));
     if (pCtx->mapToUpdate.find(iHash) == pCtx->mapToUpdate.end())
-        pCtx->mapToUpdate[iHash] = std::string(sFile2);
+        pCtx->mapToUpdate[iHash] = sFile2;
 
-    free(sFile2);
     return true;
 }
 

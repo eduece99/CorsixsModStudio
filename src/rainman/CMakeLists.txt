@@ -87,8 +87,30 @@ endif()
 
 # Rainman library
 find_package(ZLIB REQUIRED)
-find_package(unofficial-libsquish CONFIG REQUIRED)
+find_package(unofficial-libsquish CONFIG QUIET)
+if(NOT TARGET unofficial::libsquish::squish)
+    find_path(LIBSQUISH_INCLUDE_DIR NAMES squish.h)
+    find_library(LIBSQUISH_LIBRARY NAMES squish libsquish)
+    if(LIBSQUISH_INCLUDE_DIR AND LIBSQUISH_LIBRARY)
+        add_library(unofficial::libsquish::squish UNKNOWN IMPORTED)
+        set_target_properties(unofficial::libsquish::squish PROPERTIES
+            IMPORTED_LOCATION "${LIBSQUISH_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${LIBSQUISH_INCLUDE_DIR}"
+        )
+    else()
+        message(FATAL_ERROR
+            "libsquish was not found. Install the libsquish development package "
+            "(for example, libsquish-dev), or provide the vcpkg "
+            "unofficial-libsquish CMake package."
+        )
+    endif()
+endif()
 find_package(spdlog CONFIG REQUIRED)
+if(WIN32)
+    set(RAINMAN_SPDLOG_TARGET spdlog::spdlog)
+else()
+    set(RAINMAN_SPDLOG_TARGET spdlog::spdlog_header_only)
+endif()
 
 file(GLOB RAINMAN_SOURCES
     "*.cpp" "*.c"
@@ -120,7 +142,7 @@ target_link_libraries(rainman
         lua502
         lua512
         ZLIB::ZLIB
-        spdlog::spdlog
+        ${RAINMAN_SPDLOG_TARGET}
     PRIVATE
         unofficial::libsquish::squish
 )

@@ -3,7 +3,7 @@
 #include "rainman/core/Exception.h"
 #include <cstring>
 #include <filesystem>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <string>
 
 class DirectoryTraverserTest : public ::testing::Test
@@ -15,7 +15,7 @@ class DirectoryTraverserTest : public ::testing::Test
 	void SetUp() override
 	{
 		tempDir = std::filesystem::temp_directory_path() /
-		    ("dirtraverser_test_" + std::to_string(_getpid()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+		    ("dirtraverser_test_" + std::to_string(GetTestProcessId()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
 		std::filesystem::create_directories(tempDir);
 		store.VInit();
 	}

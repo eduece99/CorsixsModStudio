@@ -131,8 +131,14 @@ class RAINMAN_API CFileSystemStore : public IFileStore
         friend class CFileSystemStore;
         CIteratorW(const wchar_t *sFolder, const CFileSystemStore *pStore);
 
+#ifdef RAINMAN_GNUC
+        DIR *m_pDirectory;
+        dirent *m_pDirEnt;
+        std::wstring m_wFileName;
+#else
         WIN32_FIND_DATAW m_W32FD;
         HANDLE m_HandFD;
+#endif
         wchar_t *m_wParentPath;
         char *m_sParentPath;
         wchar_t *m_wFullPath;
@@ -157,6 +163,9 @@ class RAINMAN_API CFileSystemStore : public IFileStore
 
         virtual tLastWriteTime VGetLastWriteTime();
         virtual IDirectoryTraverser::IIterator::eErrors VNextItem();
+
+      private:
+        void RebuildFullPath(const wchar_t *sFileName);
     };
 
     virtual IDirectoryTraverser::IIterator *VIterate(const char *sPath);

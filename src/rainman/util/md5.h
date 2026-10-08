@@ -2,13 +2,11 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include "rainman/core/Api.h"
 
-#ifdef __alpha
-typedef unsigned int uint32;
-#else
-typedef unsigned long uint32;
-#endif
+typedef uint32_t uint32;
 
 struct RAINMAN_API MD5Context
 {

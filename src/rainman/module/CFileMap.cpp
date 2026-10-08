@@ -339,6 +339,23 @@ const char *CFileMap::VGetEntryPoint(unsigned long iID)
     return m_vTOCs[iID]->sName.c_str();
 }
 
+std::vector<std::string> CFileMap::GetSourceFolderPaths(const char *sPath)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mtxMap);
+    _Folder *pFolder = nullptr;
+    _FindFile(sPath, &pFolder, true);
+
+    std::vector<std::string> vPaths;
+    for (const auto &[pSource, sSourcePath] : pFolder->mapSourceNames)
+    {
+        if (pSource->GetSourceType() == 0 && !sSourcePath.empty())
+        {
+            vPaths.push_back(sSourcePath);
+        }
+    }
+    return vPaths;
+}
+
 void CFileMap::CIterator::_MakeFullName()
 {
     const char *sPartB = "";

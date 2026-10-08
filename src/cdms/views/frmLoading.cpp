@@ -20,6 +20,7 @@
 #include "resource.h"
 #include "common/Common.h"
 #include "common/ThemeColours.h"
+#include "common/BitmapResources.h"
 
 BEGIN_EVENT_TABLE(frmLoading, wxFrame)
 EVT_CLOSE(frmLoading::OnQuit)
@@ -37,8 +38,17 @@ frmLoading::frmLoading(const wxString &sTitle)
     m_pText = nullptr;
     m_pCancelButton = nullptr;
 
-    m_pLoadingImage = new wxBitmap(wxT("RIDB_LOADING"), wxBITMAP_TYPE_BMP_RESOURCE);
-    wxBitmap::Rescale(*m_pLoadingImage, GetSize());
+    m_pLoadingImage = std::make_unique<wxBitmap>(
+        CDMSBitmapResources::LoadBitmap(wxT("RIDB_LOADING"), wxT("logo_smaller.bmp")));
+    if (m_pLoadingImage->IsOk())
+    {
+        wxBitmap::Rescale(*m_pLoadingImage, GetSize());
+    }
+    else
+    {
+        wxLogError(wxT("Failed to load the loading-screen bitmap."));
+        m_pLoadingImage.reset();
+    }
 
     m_pText = new wxStaticText(this, -1, sTitle, FromDIP(wxPoint(0, 317)), FromDIP(wxSize(384, 33)),
                                wxST_NO_AUTORESIZE | wxALIGN_CENTER);
@@ -60,11 +70,7 @@ frmLoading::frmLoading(const wxString &sTitle)
     m_pCancelButton->Hide();
 }
 
-frmLoading::~frmLoading()
-{
-    delete m_pLoadingImage;
-    m_pLoadingImage = nullptr;
-}
+frmLoading::~frmLoading() = default;
 
 void frmLoading::OnQuit(wxCloseEvent &event) { UNUSED(event); }
 

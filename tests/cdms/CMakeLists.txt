@@ -88,6 +88,7 @@ target_include_directories(cdms_tests PRIVATE
 
 target_link_libraries(cdms_tests PRIVATE
     rainman
+    lsp
     GTest::gtest
     GTest::gtest_main
     ${wxWidgets_LIBRARIES}

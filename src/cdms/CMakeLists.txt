@@ -70,6 +70,17 @@ add_custom_command(TARGET ModStudioDE POST_BUILD
     COMMENT "Copying Mod_Studio_Files to output directory"
 )
 
+if(NOT WIN32)
+    foreach(bitmap donate.bmp logo_smaller.bmp icon.ico)
+        add_custom_command(TARGET ModStudioDE POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/res/${bitmap}"
+                "$<TARGET_FILE_DIR:ModStudioDE>/${bitmap}"
+            COMMENT "Copying ${bitmap} to output directory"
+        )
+    endforeach()
+endif()
+
 # Copy LuaLS binary (downloaded at configure time) into the output directory
 if(LUALS_DIR AND EXISTS "${LUALS_DIR}/bin/lua-language-server.exe")
     add_custom_command(TARGET ModStudioDE POST_BUILD
@@ -83,6 +94,9 @@ endif()
 install(TARGETS ModStudioDE RUNTIME DESTINATION ".")
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/Mod_Studio_Files/"
     DESTINATION "Mod_Studio_Files")
+if(NOT WIN32)
+    install(FILES res/donate.bmp res/logo_smaller.bmp res/icon.ico DESTINATION ".")
+endif()
 install(CODE "
     foreach(file bin/lua-language-server.exe main.lua script/client.lua LICENSE)
         if(NOT EXISTS \"${LUALS_DIR}/\${file}\")

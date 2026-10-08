@@ -21,7 +21,7 @@
 #include <rainman/formats/CRgdHashTable.h>
 #include <filesystem>
 #include <fstream>
-#include <process.h>
+#include "../common/TestProcessId.h"
 
 class HashServiceTest : public ::testing::Test
 {
@@ -32,7 +32,7 @@ class HashServiceTest : public ::testing::Test
 	void SetUp() override
 	{
 		m_tempDir = std::filesystem::temp_directory_path() /
-		            ("hashsvc_test_" + std::to_string(_getpid()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+		            ("hashsvc_test_" + std::to_string(GetTestProcessId()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
 		std::filesystem::create_directories(m_tempDir);
 
 		// Create a minimal dictionary file

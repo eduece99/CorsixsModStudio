@@ -27,6 +27,7 @@
 #include "services/FileService.h"
 #include "presenters/CModuleSettingsPresenter.h"
 #include "common/Common.h"
+#include <wx/filename.h>
 
 BEGIN_EVENT_TABLE(frmModule, wxWindow)
 EVT_SIZE(frmModule::OnSize)
@@ -131,7 +132,8 @@ frmModule::pgMain::pgMain(wxWindow *parent, wxWindowID id, const wxPoint &pos, c
     pVersionSizer->Add(SBT(new wxTextCtrl(this, IDC_VersionRevision, sNumBuffer), AppStr(mod_version_help)), 1,
                        wxALL | wxEXPAND, 3);
     pVersionSizer->Add(
-        new wxButton(this, IDC_VersionHelp, AppStr(question_mark), wxDefaultPosition, FromDIP(wxSize(24, -1))), 0,
+        new wxButton(this, IDC_VersionHelp, AppStr(question_mark), wxDefaultPosition,
+                     wxSize(FromDIP(24), wxDefaultCoord)), 0,
         wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxFIXED_MINSIZE | wxALL, 3);
 
     pTopSizer->Add(SBT(new wxStaticText(this, -1, AppStr(mod_version)), AppStr(mod_version_help)), 0,
@@ -178,7 +180,7 @@ void frmModule::pgMain::OnTextureIconUpdate(wxCommandEvent &event)
 
 void frmModule::pgMain::InitModFolderList(wxControlWithItems *pList)
 {
-    wxString sDoWFolder = TheConstruct->GetModuleFile().BeforeLast('\\');
+    wxString sDoWFolder = wxFileName(TheConstruct->GetModuleFile()).GetPath();
     auto iterResult = FileService::IterateFileSystem(sDoWFolder);
     if (!iterResult)
     {
@@ -210,7 +212,7 @@ void frmModule::pgMain::InitModFolderList(wxControlWithItems *pList)
 void frmModule::pgMain::InitDllList(wxControlWithItems *pList)
 {
     wxString sTheDll = TheConstruct->GetModuleService().GetDllName();
-    wxString sDoWFolder = TheConstruct->GetModuleFile().BeforeLast('\\');
+    wxString sDoWFolder = wxFileName(TheConstruct->GetModuleFile()).GetPath();
     auto iterResult = FileService::IterateFileSystem(sDoWFolder);
     if (!iterResult)
     {

@@ -25,6 +25,7 @@
 #include <rainman/module/CModuleFile.h>
 #include <rainman/core/Exception.h>
 #include <gtest/gtest.h>
+#include <wx/file.h>
 #include <wx/filename.h>
 #include <chrono>
 #include <mutex>
@@ -262,13 +263,10 @@ TEST(CModuleLoadPresenterAsyncTest, LoadSga_InvalidPath_ReportsError)
     // Create a temporary file with invalid SGA content
     wxString sTempPath = wxFileName::CreateTempFileName(wxT("cdms_test_"));
     {
-        FILE *f = _wfopen(sTempPath.wc_str(), L"wb");
-        if (f)
-        {
-            const char *garbage = "NOT_AN_SGA_FILE";
-            fwrite(garbage, 1, strlen(garbage), f);
-            fclose(f);
-        }
+        wxFile oFile(sTempPath, wxFile::write);
+        ASSERT_TRUE(oFile.IsOpened());
+        constexpr char sGarbage[] = "NOT_AN_SGA_FILE";
+        ASSERT_EQ(oFile.Write(sGarbage, sizeof(sGarbage) - 1), sizeof(sGarbage) - 1);
     }
 
     view.ShowLoadingDialog(wxT("Loading SGA..."));

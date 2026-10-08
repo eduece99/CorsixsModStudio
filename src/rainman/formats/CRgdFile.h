@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #pragma once
 
 #include "rainman/core/gnuc_defines.h"
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -211,29 +212,29 @@ class RAINMAN_API CRgdFile : public IMetaNode
     struct _RgdHeader // aka. Chunky header?
     {
         std::string sHeader; // 16 bytes "Relic Chunky\x0D\x0A\x1A\x00"
-        long iVersion;       // 1 - is the same in all (is 3 in CoH)
-        long iUnknown3;      // 1 - is the same in all
+        uint32_t iVersion;   // 1 - is the same in all (is 3 in CoH)
+        uint32_t iUnknown3;  // 1 - is the same in all
 
         // v3 only:
-        long iUnknown4;
-        long iUnknown5;
-        long iUnknown6;
+        uint32_t iUnknown4;
+        uint32_t iUnknown5;
+        uint32_t iUnknown6;
     };
 
     struct _RgdChunk
     {
         std::string sChunkyType; // 8 bytes "DATAAEGD"
-        long iVersion;           // CoH = 1. DoW = ?
-        long iChunkLength;       // iStringLength  + sizeof(iCRC) + sizeof(iDataLength) + iDataLength
-        long iStringLength;
+        uint32_t iVersion;       // CoH = 1. DoW = ?
+        uint32_t iChunkLength;   // iStringLength  + sizeof(iCRC) + sizeof(iDataLength) + iDataLength
+        uint32_t iStringLength;
         std::string sString; // variable length
 
         // these two only in v3 chunky
-        unsigned long iUnknown1;
-        unsigned long iUnknown2;
+        uint32_t iUnknown1;
+        uint32_t iUnknown2;
 
-        unsigned long iCRC; // CRC32 of vData
-        long iDataLength;
+        uint32_t iCRC; // CRC32 of vData
+        uint32_t iDataLength;
         std::vector<char> vData;
         _RgdEntry RootEntry;
     };

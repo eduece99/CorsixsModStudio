@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <string>
 
 class DowDeModuleLoadingTest : public ::testing::Test
@@ -36,7 +36,7 @@ class DowDeModuleLoadingTest : public ::testing::Test
     void SetUp() override
     {
         m_tempDir = std::filesystem::temp_directory_path() /
-                    ("dowde_loading_" + std::to_string(_getpid()) + "_" +
+                    ("dowde_loading_" + std::to_string(GetTestProcessId()) + "_" +
                      std::to_string(reinterpret_cast<uintptr_t>(this)));
         m_modsDir = m_tempDir / "AppData" / "mods";
         m_installDir = m_tempDir / "install";
@@ -103,6 +103,20 @@ TEST_F(DowDeModuleLoadingTest, AppDataModLoadsOwnDataInstalledRequiredAndEngine)
               m_installDir / "InstalledFolder" / "InstalledArchive.sga");
 }
 
+TEST_F(DowDeModuleLoadingTest, WindowsSeparatorsInDataFolderCreateNativeDirectory)
+{
+    Write(m_modsDir / "Custom.module",
+          "[global]\nUIName = Custom\nModFolder = UserFolder\nDataFolder.1 = DXP2\\Data\n");
+
+    CModuleFile module;
+    const auto modPath = (m_modsDir / "Custom.module").string();
+    module.LoadModuleFile(modPath.c_str());
+    module.ReloadResources(CModuleFile::RR_DataFolders, 0, 0);
+    module.VInit();
+
+    EXPECT_TRUE(std::filesystem::is_directory(m_modsDir / "UserFolder" / "DXP2" / "Data"));
+}
+
 TEST_F(DowDeModuleLoadingTest, LocalRequiredTakesPrecedenceAndOwnPipelineMatchesModuleIdentifier)
 {
     Write(m_modsDir / "Custom.module",
@@ -157,6 +171,54 @@ TEST_F(DowDeModuleLoadingTest, InstalledPipelineSuppliesDataGenericWhenAppDataHa
     module.VInit();
     EXPECT_EQ(Read(module, "Generic\\generic.txt", 7), "generic");
 }
+
+#ifdef RAINMAN_GNUC
+TEST_F(DowDeModuleLoadingTest, RequiredModuleUsesTheModuleAdjacentPipelineForGenericPaths)
+{
+    const std::string expected = "GameData = { blueprint = true }\n";
+    Write(m_modsDir / "TTRU_mod.module",
+          "[global]\nUIName = TTRU\nModFolder = Mod\nRequiredMod.1 = W40k\n");
+    Write(m_installDir / "W40k.module", "[global]\nUIName = W40k\nModFolder = W40k\n");
+    Write(m_modsDir / "pipeline.ini",
+          "[project:W40k]\nDataGeneric=DataGeneric\\other_mods\\W40K\n");
+    Write(m_installDir / "pipeline.ini",
+          "[project:W40k]\nDataGeneric=%app%\\MissingInstalledGeneric\n");
+    Write(m_modsDir / "DataGeneric" / "other_mods" / "W40K" / "Attrib" / "EBPs" / "entity_blueprint.nil",
+          expected);
+
+    CModuleFile module;
+    const auto modPath = (m_modsDir / "TTRU_mod.module").string();
+    module.LoadModuleFile(modPath.c_str());
+    const auto installPath = m_installDir.string();
+    module.SetGameInstallPath(installPath.c_str());
+    module.ReloadResources(CModuleFile::RR_RequiredMods, CModuleFile::RR_DataGeneric, 0);
+    module.VInit();
+
+    EXPECT_EQ(Read(module, "Generic\\attrib\\ebps\\entity_blueprint.nil", expected.size()), expected);
+}
+
+TEST_F(DowDeModuleLoadingTest, UsesCommonDataGenericWhenProjectFolderIsMissing)
+{
+    const std::string expected = "GameData = { blueprint = true }\n";
+    Write(m_installDir / "W40k.module",
+          "[global]\nUIName = W40k\nModFolder = W40k\nDataFolder.1 = Data\n");
+    Write(m_installDir / "pipeline.ini",
+          "[project:W40k]\nDataGeneric=%app%\\ModTools\\DataGeneric\\W40k\n");
+    Write(m_installDir / "ModTools" / "DataGeneric" / "attrib" / "ebps" / "entity_blueprint.nil",
+          expected);
+
+    CModuleFile module;
+    const auto modPath = (m_installDir / "W40k.module").string();
+    module.LoadModuleFile(modPath.c_str());
+    const auto installPath = m_installDir.string();
+    module.SetGameInstallPath(installPath.c_str());
+    module.ReloadResources(CModuleFile::RR_DataGeneric, 0, 0);
+    module.VInit();
+
+    EXPECT_EQ(Read(module, "Generic\\attrib\\ebps\\entity_blueprint.nil", expected.size()), expected);
+}
+
+#endif
 
 TEST_F(DowDeModuleLoadingTest, LegacySameDirectoryResolutionAndReloadClearsInstallPath)
 {

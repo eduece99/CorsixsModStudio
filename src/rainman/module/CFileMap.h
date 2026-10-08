@@ -107,6 +107,8 @@ class RAINMAN_API CFileMap : public IFileStore, public IDirectoryTraverser
 
     virtual unsigned long VGetEntryPointCount();
     virtual const char *VGetEntryPoint(unsigned long iID);
+    //! Returns filesystem-backed source directories for a virtual folder path.
+    std::vector<std::string> GetSourceFolderPaths(const char *sPath);
 
     // IFileStore Interface
     //! Initialize the IFileStore interface

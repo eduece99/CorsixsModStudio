@@ -2,11 +2,12 @@
 #include "rainman/module/CModuleFile.h"
 #include "rainman/localization/CUcsFile.h"
 #include "rainman/core/Exception.h"
+#include <algorithm>
 #include <cstring>
 #include <cwchar>
 #include <filesystem>
 #include <fstream>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <optional>
 
 class ModuleFileTest : public ::testing::Test {
@@ -15,7 +16,7 @@ protected:
 
     void SetUp() override {
         tempDir = std::filesystem::temp_directory_path() /
-            ("mod_test_" + std::to_string(_getpid()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+            ("mod_test_" + std::to_string(GetTestProcessId()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
         std::filesystem::create_directories(tempDir);
     }
 
@@ -55,6 +56,21 @@ TEST_F(ModuleFileTest, LoadNonexistentFileThrows) {
         caught = ex;
     }
     ASSERT_TRUE(caught.has_value());
+}
+
+TEST_F(ModuleFileTest, LoadModuleFileNormalizesWindowsSeparatorsOnLinux) {
+    const auto nativePath = writeModuleFile("separator.module", "");
+    auto modulePath = nativePath;
+#ifdef RAINMAN_GNUC
+    std::replace(modulePath.begin(), modulePath.end(), '/', '\\');
+#endif
+
+    CModuleFile mod;
+    mod.LoadModuleFile(modulePath.c_str());
+
+    auto expectedApplicationPath = tempDir.string();
+    expectedApplicationPath.push_back(std::filesystem::path::preferred_separator);
+    EXPECT_STREQ(mod.GetApplicationPath(), expectedApplicationPath.c_str());
 }
 
 TEST_F(ModuleFileTest, LoadEmptyFileClassifiesAsCohEarly) {
@@ -679,7 +695,11 @@ TEST_F(ModuleFileTest, GetArchiveFullPathWithLocaleExpansion) {
 
     std::string fullPath(buf.data());
     // %LOCALE% should expand to Locale\English
+#ifdef RAINMAN_GNUC
+    EXPECT_NE(fullPath.find("Locale/English"), std::string::npos);
+#else
     EXPECT_NE(fullPath.find("Locale\\English"), std::string::npos);
+#endif
     EXPECT_NE(fullPath.find("W40kLocale.sga"), std::string::npos);
     // %LOCALE% should NOT appear in the output
     EXPECT_EQ(fullPath.find("%LOCALE%"), std::string::npos);
@@ -895,7 +915,11 @@ TEST_F(ModuleFileTest, GetApplicationPathAfterLoad) {
     ASSERT_NE(appPath, nullptr);
     // ApplicationPath should be the directory containing the module file
     std::string appPathStr(appPath);
+#ifdef RAINMAN_GNUC
+    std::string expectedDir = tempDir.string() + "/";
+#else
     std::string expectedDir = tempDir.string() + "\\";
+#endif
     EXPECT_EQ(appPathStr, expectedDir);
 }
 

@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #pragma once
 #include "rainman/core/gnuc_defines.h"
+#include "rainman/lua/Lua51.h"
 extern "C"
 {
 #include <lua.h>

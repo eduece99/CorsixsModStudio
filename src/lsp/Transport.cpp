@@ -19,10 +19,26 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "lsp/Transport.h"
 #include <rainman/core/RainmanLog.h>
+#ifdef _WIN32
+#include <algorithm>
+#else
+#include <cerrno>
+#include <chrono>
+#include <codecvt>
+#include <fcntl.h>
+#include <locale>
+#include <poll.h>
+#include <pthread.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <vector>
+#endif
 
 namespace lsp
 {
 
+#ifdef _WIN32
 CProcess::~CProcess() { Cleanup(); }
 
 bool CProcess::Start(const std::wstring &exePath, const std::wstring &args, const std::wstring &workingDir)
@@ -223,5 +239,265 @@ void CProcess::Cleanup()
         m_hProcess = INVALID_HANDLE_VALUE;
     }
 }
+#else
+namespace
+{
+std::string WideToUtf8(const std::wstring &text)
+{
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    return converter.to_bytes(text);
+}
+
+std::vector<std::string> SplitArguments(const std::wstring &args)
+{
+    std::vector<std::string> result;
+    std::wstring argument;
+    bool inQuotes = false;
+
+    for (wchar_t character : args)
+    {
+        if (character == L'"')
+        {
+            inQuotes = !inQuotes;
+        }
+        else if ((character == L' ' || character == L'\t') && !inQuotes)
+        {
+            if (!argument.empty())
+            {
+                result.push_back(WideToUtf8(argument));
+                argument.clear();
+            }
+        }
+        else
+        {
+            argument.push_back(character);
+        }
+    }
+
+    if (!argument.empty())
+    {
+        result.push_back(WideToUtf8(argument));
+    }
+    return result;
+}
+
+bool SetNonBlocking(int fd)
+{
+    const int flags = fcntl(fd, F_GETFL, 0);
+    return flags != -1 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
+}
+} // namespace
+
+CProcess::~CProcess() { Kill(); }
+
+bool CProcess::Start(const std::wstring &exePath, const std::wstring &args, const std::wstring &workingDir)
+{
+    Kill();
+
+    int stdinPipe[2];
+    int stdoutPipe[2];
+    if (pipe(stdinPipe) != 0)
+    {
+        return false;
+    }
+    if (pipe(stdoutPipe) != 0)
+    {
+        close(stdinPipe[0]);
+        close(stdinPipe[1]);
+        return false;
+    }
+
+    const std::string executable = WideToUtf8(exePath);
+    const std::string directory = workingDir.empty() ? std::string{} : WideToUtf8(workingDir);
+    std::vector<std::string> arguments = SplitArguments(args);
+    std::vector<char *> argv;
+    argv.reserve(arguments.size() + 2);
+    argv.push_back(const_cast<char *>(executable.c_str()));
+    for (std::string &argument : arguments)
+    {
+        argv.push_back(argument.data());
+    }
+    argv.push_back(nullptr);
+
+    const pid_t process = fork();
+    if (process == -1)
+    {
+        close(stdinPipe[0]);
+        close(stdinPipe[1]);
+        close(stdoutPipe[0]);
+        close(stdoutPipe[1]);
+        return false;
+    }
+    if (process == 0)
+    {
+        if ((!directory.empty() && chdir(directory.c_str()) != 0) ||
+            dup2(stdinPipe[0], STDIN_FILENO) == -1 || dup2(stdoutPipe[1], STDOUT_FILENO) == -1 ||
+            dup2(stdoutPipe[1], STDERR_FILENO) == -1)
+        {
+            _exit(127);
+        }
+        close(stdinPipe[0]);
+        close(stdinPipe[1]);
+        close(stdoutPipe[0]);
+        close(stdoutPipe[1]);
+        execvp(executable.c_str(), argv.data());
+        _exit(127);
+    }
+
+    close(stdinPipe[0]);
+    close(stdoutPipe[1]);
+    if (!SetNonBlocking(stdoutPipe[0]))
+    {
+        close(stdinPipe[1]);
+        close(stdoutPipe[0]);
+        kill(process, SIGKILL);
+        waitpid(process, nullptr, 0);
+        return false;
+    }
+
+    m_iProcess = process;
+    m_iStdinWrite = stdinPipe[1];
+    m_iStdoutRead = stdoutPipe[0];
+    return true;
+}
+
+bool CProcess::Write(const std::string &data) { return Write(data.data(), data.size()); }
+
+bool CProcess::Write(const char *data, size_t length)
+{
+    if (m_iStdinWrite == -1)
+    {
+        return false;
+    }
+
+    sigset_t blockedSignals;
+    sigset_t previousSignals;
+    sigemptyset(&blockedSignals);
+    sigaddset(&blockedSignals, SIGPIPE);
+    if (pthread_sigmask(SIG_BLOCK, &blockedSignals, &previousSignals) != 0)
+    {
+        return false;
+    }
+
+    sigset_t pendingSignals;
+    sigpending(&pendingSignals);
+    const bool hadPendingSigpipe = sigismember(&pendingSignals, SIGPIPE) == 1;
+
+    size_t totalWritten = 0;
+    bool success = true;
+    while (totalWritten < length)
+    {
+        const ssize_t written = write(m_iStdinWrite, data + totalWritten, length - totalWritten);
+        if (written > 0)
+        {
+            totalWritten += static_cast<size_t>(written);
+        }
+        else if (written == -1 && errno == EINTR)
+        {
+            continue;
+        }
+        else
+        {
+            success = false;
+            break;
+        }
+    }
+
+    if (!success && errno == EPIPE && !hadPendingSigpipe)
+    {
+        timespec timeout{};
+        sigtimedwait(&blockedSignals, nullptr, &timeout);
+    }
+    pthread_sigmask(SIG_SETMASK, &previousSignals, nullptr);
+    return success;
+}
+
+std::string CProcess::Read(size_t bufferSize)
+{
+    if (m_iStdoutRead == -1 || bufferSize == 0)
+    {
+        return {};
+    }
+
+    std::string result(bufferSize, '\0');
+    const ssize_t bytesRead = read(m_iStdoutRead, result.data(), result.size());
+    if (bytesRead <= 0)
+    {
+        return {};
+    }
+    result.resize(static_cast<size_t>(bytesRead));
+    return result;
+}
+
+std::string CProcess::ReadWithTimeout(DWORD timeoutMs, size_t bufferSize)
+{
+    if (m_iStdoutRead == -1)
+    {
+        return {};
+    }
+
+    pollfd descriptor{m_iStdoutRead, POLLIN, 0};
+    int result;
+    do
+    {
+        result = poll(&descriptor, 1, static_cast<int>(timeoutMs));
+    } while (result == -1 && errno == EINTR);
+
+    return result > 0 && (descriptor.revents & (POLLIN | POLLHUP)) ? Read(bufferSize) : std::string{};
+}
+
+bool CProcess::IsRunning() const
+{
+    if (m_iProcess == -1)
+    {
+        return false;
+    }
+
+    int status = 0;
+    const pid_t result = waitpid(m_iProcess, &status, WNOHANG);
+    if (result == 0 || (result == -1 && errno == EINTR))
+    {
+        return true;
+    }
+    m_iProcess = -1;
+    return false;
+}
+
+void CProcess::Kill()
+{
+    if (m_iProcess != -1 && IsRunning())
+    {
+        kill(m_iProcess, SIGTERM);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        while (IsRunning() && std::chrono::steady_clock::now() < deadline)
+        {
+            usleep(10000);
+        }
+        if (IsRunning())
+        {
+            kill(m_iProcess, SIGKILL);
+            while (waitpid(m_iProcess, nullptr, 0) == -1 && errno == EINTR)
+            {
+            }
+            m_iProcess = -1;
+        }
+    }
+    Cleanup();
+}
+
+void CProcess::Cleanup()
+{
+    if (m_iStdinWrite != -1)
+    {
+        close(m_iStdinWrite);
+        m_iStdinWrite = -1;
+    }
+    if (m_iStdoutRead != -1)
+    {
+        close(m_iStdoutRead);
+        m_iStdoutRead = -1;
+    }
+}
+#endif
 
 } // namespace lsp

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <wx/init.h>
 #include "common/strconv.h"
+#include <cstring>
 #include <cstdlib>
 
 class StrconvTest : public ::testing::Test {

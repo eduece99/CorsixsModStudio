@@ -18,13 +18,14 @@
 
 #include "Application.h"
 #include "frame/Construct.h"
-#include <crtdbg.h>
 #include "strings.h"
 #include "Utility.h"
 #include <wx/fileconf.h>
 #include <wx/filename.h>
 #include <wx/sysopt.h>
 #include <wx/image.h>
+#include <wx/stdpaths.h>
+#include <wx/version.h>
 #include "Common.h"
 #include "rainman/core/RainmanLog.h"
 
@@ -46,6 +47,7 @@ bool CDMSApplication::OnInit()
     wxConfigBase::Get()->SetExpandEnvVars(false);
     wxConfigBase::Get()->SetPath(AppStr(config_initialpath));
 
+#if wxCHECK_VERSION(3, 3, 0)
     // Apply saved appearance preference (0=system, 1=light, 2=dark)
     int iAppearance = 0;
     wxConfigBase::Get()->Read(AppStr(config_appearance), &iAppearance, 0);
@@ -61,13 +63,27 @@ bool CDMSApplication::OnInit()
     {
         SetAppearance(Appearance::System);
     }
+#endif
 
     wxImage::AddHandler(new wxTGAHandler);
 
     //_CrtSetBreakAlloc(5143);
 
     auto *pConstruct = new ConstructFrame(AppStr(app_name), wxDefaultPosition, wxSize(500, 500));
+#ifdef _WIN32
     pConstruct->SetIcon(wxIcon(wxT("APPICON"), wxBITMAP_TYPE_ICO_RESOURCE));
+#else
+    const wxString sIconPath = wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPathWithSep() + wxT("icon.ico");
+    const wxIcon oIcon(sIconPath, wxBITMAP_TYPE_ICO);
+    if (oIcon.IsOk())
+    {
+        pConstruct->SetIcon(oIcon);
+    }
+    else
+    {
+        wxLogError(wxT("Failed to load application icon: ") + sIconPath);
+    }
+#endif
     pConstruct->Show(true);
     pConstruct->Maximize(true);
     SetTopWindow(pConstruct);

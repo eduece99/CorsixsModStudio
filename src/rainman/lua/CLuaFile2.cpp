@@ -348,18 +348,19 @@ int CLuaFile2::_luaParent(const char *sFnName, const char *sTableToGrab)
             else
             {
                 // Open parented file
-                char *sFileNameFull = CHECK_MEM(new char[strlen(sFileName) + m_sRootFolder.size() + 1]);
-                AutoDelete<char> sFileNameFull_(sFileNameFull, true);
-                strcpy(sFileNameFull, m_sRootFolder.c_str());
-                strcat(sFileNameFull, sFileName);
+                std::string sFileNameFull = m_sRootFolder + sFileName;
+#ifdef RAINMAN_GNUC
+                std::replace(sFileNameFull.begin(), sFileNameFull.end(), '\\', '/');
+#endif
                 IFileStore::IStream *pFileIn = nullptr;
                 try
                 {
-                    pFileIn = pFiles->VOpenStream(sFileNameFull);
+                    pFileIn = pFiles->VOpenStream(sFileNameFull.c_str());
                 }
                 catch (const CRainmanException &e)
                 {
-                    throw CRainmanException(e, __FILE__, __LINE__, "Unable to open file \'%s\'", sFileNameFull);
+                    throw CRainmanException(e, __FILE__, __LINE__, "Unable to open file \'%s\'",
+                                            sFileNameFull.c_str());
                 }
                 AutoDelete<IFileStore::IStream> pFileIn_(pFileIn, false);
 
@@ -373,7 +374,8 @@ int CLuaFile2::_luaParent(const char *sFnName, const char *sTableToGrab)
                 }
                 catch (const CRainmanException &e)
                 {
-                    throw CRainmanException(e, __FILE__, __LINE__, "Error loading file \'%s\'", sFileNameFull);
+                    throw CRainmanException(e, __FILE__, __LINE__, "Error loading file \'%s\'",
+                                            sFileNameFull.c_str());
                 }
                 pFileIn_.del();
 

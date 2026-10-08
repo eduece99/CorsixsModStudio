@@ -587,15 +587,40 @@ void CRgdFile::Load(IFileStore::IStream *pStream)
     // Attempt to read chunks
     char sChunkHeadTempBuffer[9] = {};
 
-    while (1)
+    while (true)
     {
+        long iChunkStart, iStreamEnd;
+        try
+        {
+            iChunkStart = pStream->VTell();
+            pStream->VSeek(0, IFileStore::IStream::SL_End);
+            iStreamEnd = pStream->VTell();
+            pStream->VSeek(iChunkStart, IFileStore::IStream::SL_Root);
+        }
+        catch (const CRainmanException &e)
+        {
+            _Clean();
+            throw CRainmanException(e, __FILE__, __LINE__, "Cannot determine RGD chunk boundaries");
+        }
+
+        if (iChunkStart == iStreamEnd)
+        {
+            break;
+        }
+        if (iChunkStart < 0 || iChunkStart > iStreamEnd || iStreamEnd - iChunkStart < 8)
+        {
+            _Clean();
+            throw CRainmanException(__FILE__, __LINE__, "Incomplete RGD chunk header");
+        }
+
         try
         {
             pStream->VRead(8, 1, sChunkHeadTempBuffer);
         }
         catch (const CRainmanException &e)
         {
-            break;
+            _Clean();
+            throw CRainmanException(e, __FILE__, __LINE__, "Input error");
         }
         auto pChunkOwner = std::make_unique<_RgdChunk>();
         _RgdChunk *pChunk = pChunkOwner.get();
@@ -1028,7 +1053,8 @@ void CRgdFile::_WriteRawRgdData(IFileStore::IOutputStream *pStream, _RgdEntry *p
 
 void CRgdFile::_ProcessRawRgdData(IFileStore::IStream *pStream, _RgdEntry *pDestination)
 {
-    long iKeyCount, iDataOffset;
+    uint32_t iKeyCount;
+    long iDataOffset;
     try
     {
         pStream->VRead(1, sizeof(uint32_t), &iKeyCount);
@@ -1039,7 +1065,7 @@ void CRgdFile::_ProcessRawRgdData(IFileStore::IStream *pStream, _RgdEntry *pDest
     while (iKeyCount)
     {
         _RgdEntry *pEntry = CHECK_MEM(new _RgdEntry);
-        long iOffset;
+        uint32_t iOffset;
         pDestination->Data.t->push_back(pEntry);
 
         pEntry->iHash = 0;
@@ -1049,13 +1075,17 @@ void CRgdFile::_ProcessRawRgdData(IFileStore::IStream *pStream, _RgdEntry *pDest
 
         try
         {
-            pStream->VRead(1, sizeof(uint32_t), &pEntry->iHash);
+            uint32_t iHash;
+            pStream->VRead(1, sizeof(iHash), &iHash);
+            pEntry->iHash = iHash;
         }
         CATCH_THROW("Input error")
 
         try
         {
-            pStream->VRead(1, sizeof(uint32_t), &pEntry->Type);
+            uint32_t iType;
+            pStream->VRead(1, sizeof(iType), &iType);
+            pEntry->Type = static_cast<eDataTypes>(iType);
         }
         CATCH_THROW("Input error")
 
@@ -1121,7 +1151,9 @@ void CRgdFile::_ProcessRawRgdData(IFileStore::IStream *pStream, _RgdEntry *pDest
         case DT_Integer:
             try
             {
-                pStream->VRead(1, sizeof(uint32_t), &pEntry->Data.i);
+                uint32_t iValue;
+                pStream->VRead(1, sizeof(iValue), &iValue);
+                pEntry->Data.i = iValue;
             }
             CATCH_THROW("Input error")
             break;
@@ -1941,7 +1973,7 @@ good:
 void CRgdFile::_ReadRainmanRgdData(IFileStore::IStream *pInput, CRgdFile::_RgdEntry *pDestination, bool bSetName)
 {
     // Name
-    unsigned long iHash, iNameLen;
+    uint32_t iHash, iNameLen;
     pInput->VRead(1, sizeof(uint32_t), &iHash);
     pInput->VRead(1, sizeof(uint32_t), &iNameLen);
     if (bSetName)
@@ -2007,7 +2039,7 @@ void CRgdFile::_ReadRainmanRgdData(IFileStore::IStream *pInput, CRgdFile::_RgdEn
     char cDataType;
     pInput->VRead(1, 1, &cDataType);
     pDestination->Type = (eDataTypes)cDataType;
-    unsigned long iDataLen;
+    uint32_t iDataLen;
     pInput->VRead(1, sizeof(uint32_t), &iDataLen);
 
     switch (pDestination->Type)
@@ -2035,7 +2067,9 @@ void CRgdFile::_ReadRainmanRgdData(IFileStore::IStream *pInput, CRgdFile::_RgdEn
     {
         if (iDataLen == sizeof(uint32_t))
         {
-            pInput->VRead(1, sizeof(uint32_t), &pDestination->Data.i);
+            uint32_t iValue;
+            pInput->VRead(1, sizeof(iValue), &iValue);
+            pDestination->Data.i = iValue;
         }
         else if (iDataLen == sizeof(short))
         {

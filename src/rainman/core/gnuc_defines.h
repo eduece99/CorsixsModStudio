@@ -32,7 +32,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define _stat stat
 #define _fstat fstat
 #define _close close
-#define _mkdir(a) mkdir(a, 755)
+#define _mkdir(a) mkdir(a, 0755)
 #define _snprintf snprintf
 #define _snwprintf swprintf
 #define _vsnprintf vsnprintf

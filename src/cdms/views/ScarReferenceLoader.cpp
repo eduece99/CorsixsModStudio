@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <rainman/core/RainmanLog.h>
+#include <rainman/core/WideFile.h>
 
 /// Read a length-prefixed string from a binary SCAR reference file.
 static std::string ReadNiceString(FILE *f)
@@ -35,7 +36,7 @@ std::vector<ScarFunctionDef> LoadScarReference(const wchar_t *pFilePath)
 {
     std::vector<ScarFunctionDef> result;
 
-    FILE *f = _wfopen(pFilePath, L"rb");
+    FILE *f = RainmanFOpen(pFilePath, L"rb");
     if (!f)
     {
         CDMS_LOG_WARN("Could not open SCAR reference file");

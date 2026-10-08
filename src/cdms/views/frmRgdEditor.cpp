@@ -40,6 +40,7 @@
 #include <memory>
 #include <rainman/io/IFileStore.h>
 #include <rainman/core/RainmanLog.h>
+#include <rainman/core/WideFile.h>
 
 extern "C"
 {
@@ -359,7 +360,7 @@ void frmRGDEditor::_MakeSureNodeHelpLoaded()
     if (!m_pNodeHelp)
     {
         m_pNodeHelp = new std::map<unsigned long, _NodeHelp>;
-        FILE *f = _wfopen(AppStr(app_luareffile), L"rb");
+        FILE *f = RainmanFOpen(AppStr(app_luareffile), L"rb");
         if (!f)
         {
             CDMS_LOG_WARN("Could not open Lua reference file: {}", AppStr(app_luareffile).mb_str().data());
@@ -972,7 +973,7 @@ bool frmRGDEditor::_SyncTreeView(IMetaNode *pNode, wxTreeItemId &oNode)
                     if (iChild == iChildCount)
                     {
                         // Entries in tree not in node -> delete tree entry
-                        wxTreeItemId oNextC = m_pTables->GetNextChild(oNodeChild, oCookie);
+                        wxTreeItemId oNextC = m_pTables->GetNextChild(oNode, oCookie);
                         m_pTables->Delete(oNodeChild);
                         oNodeChild = oNextC;
                     }
@@ -1042,7 +1043,7 @@ bool frmRGDEditor::_SyncTreeView(IMetaNode *pNode, wxTreeItemId &oNode)
                         {
                             delete pNodeChild;
                             // sName_oNode > sName_pNode -> item in tree not in oNode -> delete from tree
-                            wxTreeItemId oNextC = m_pTables->GetNextChild(oNodeChild, oCookie);
+                            wxTreeItemId oNextC = m_pTables->GetNextChild(oNode, oCookie);
                             m_pTables->Delete(oNodeChild);
                             oNodeChild = oNextC;
                         }
@@ -1052,7 +1053,7 @@ bool frmRGDEditor::_SyncTreeView(IMetaNode *pNode, wxTreeItemId &oNode)
                             {
                                 delete pNodeChild;
                             }
-                            oNodeChild = m_pTables->GetNextChild(oNodeChild, oCookie);
+                            oNodeChild = m_pTables->GetNextChild(oNode, oCookie);
                             ++iChild;
                         }
                     }
@@ -1275,14 +1276,18 @@ void frmRGDEditor::OnPropertyChange(wxPropertyGridEvent &event)
     {
         // Current selection child value
         unsigned long iChild = (unsigned long)event.GetProperty()->GetClientData();
+        const wxTreeItemId oParent = m_pTables->GetSelection();
         wxTreeItemIdValue oTreeCookie;
-        wxTreeItemId oTreeItem = m_pTables->GetFirstChild(m_pTables->GetSelection(), oTreeCookie);
-        while (iChild)
+        wxTreeItemId oTreeItem = m_pTables->GetFirstChild(oParent, oTreeCookie);
+        while (iChild && oTreeItem.IsOk())
         {
-            oTreeItem = m_pTables->GetNextChild(oTreeItem, oTreeCookie);
+            oTreeItem = m_pTables->GetNextChild(oParent, oTreeCookie);
             --iChild;
         }
-        _DoValueChange(oTreeItem, event, event.GetProperty(), true);
+        if (oTreeItem.IsOk())
+        {
+            _DoValueChange(oTreeItem, event, event.GetProperty(), true);
+        }
     }
 }
 

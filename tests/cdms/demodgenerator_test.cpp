@@ -28,7 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <fstream>
 #include <iterator>
 #include <memory>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <utility>
 
 namespace
@@ -47,7 +47,7 @@ class DEModGeneratorTest : public ::testing::Test
     void SetUp() override
     {
         m_root = std::filesystem::temp_directory_path() /
-                 ("de_mod_generator_" + std::to_string(_getpid()) + "_" +
+                 ("de_mod_generator_" + std::to_string(GetTestProcessId()) + "_" +
                   std::to_string(reinterpret_cast<std::uintptr_t>(this)));
         std::filesystem::create_directories(m_root);
     }

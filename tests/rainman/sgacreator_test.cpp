@@ -8,7 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <process.h>
+#include "../common/TestProcessId.h"
 #include <string>
 #include <optional>
 
@@ -19,7 +19,7 @@ protected:
 	void SetUp() override
 	{
 		tempDir = std::filesystem::temp_directory_path() /
-		          ("sgacreator_test_" + std::to_string(_getpid()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+		          ("sgacreator_test_" + std::to_string(GetTestProcessId()) + "_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
 		std::filesystem::create_directories(tempDir);
 	}
 

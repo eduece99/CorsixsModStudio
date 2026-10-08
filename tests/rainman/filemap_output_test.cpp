@@ -23,7 +23,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/core/Exception.h"
 #include <filesystem>
 #include <fstream>
-#include <process.h>
+#include <memory>
+#include "../common/TestProcessId.h"
 #include <string>
 
 // Test fixture for CFileMap output stream (save) scenarios.
@@ -37,7 +38,7 @@ class FileMapOutputTest : public ::testing::Test
     void SetUp() override
     {
         tempDir = std::filesystem::temp_directory_path() /
-                  ("filemap_output_test_" + std::to_string(_getpid()) + "_" +
+                  ("filemap_output_test_" + std::to_string(GetTestProcessId()) + "_" +
                    std::to_string(reinterpret_cast<uintptr_t>(this)));
         std::filesystem::create_directories(tempDir);
     }
@@ -155,6 +156,28 @@ TEST_F(FileMapOutputTest, SaveToEmptyDataFolderSourceSucceeds)
     // Verify the file was created in the Data folder (not the SGA folder)
     std::string savedFilePath = dataFolderPath + "\\attrib\\test_file.rgd";
     EXPECT_TRUE(std::filesystem::exists(savedFilePath)) << "File should be saved in Data folder: " << savedFilePath;
+}
+
+TEST_F(FileMapOutputTest, ReportsPhysicalFolderPathForVirtualFolder)
+{
+    CFileMap fileMap;
+    CFileSystemStore fsStore;
+    fsStore.VInit();
+
+    const auto dataGenericPath = tempDir / "DataGeneric";
+    const auto attribPath = dataGenericPath / "attrib";
+    std::filesystem::create_directories(attribPath);
+    std::ofstream(attribPath / "example.lua") << "GameData = {}";
+
+    auto sourceIterator = std::unique_ptr<IDirectoryTraverser::IIterator>(
+        fsStore.VIterate(dataGenericPath.string().c_str()));
+    void *pSource = fileMap.RegisterSource(0, false, 0, "TestMod", "DataGeneric", &fsStore, &fsStore, false, false);
+    fileMap.MapIterator(pSource, "Generic", sourceIterator.get());
+
+    const auto sourcePaths = fileMap.GetSourceFolderPaths("Generic\\attrib\\");
+    ASSERT_EQ(sourcePaths.size(), 1u);
+    EXPECT_TRUE(std::filesystem::path(sourcePaths.front()).is_absolute());
+    EXPECT_EQ(std::filesystem::path(sourcePaths.front()).lexically_normal(), attribPath.lexically_normal());
 }
 
 // When no default-output source is registered, VOpenOutputStream should throw

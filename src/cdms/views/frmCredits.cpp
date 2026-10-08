@@ -20,6 +20,7 @@
 #include "resource.h"
 #include "common/Common.h"
 #include "common/ThemeColours.h"
+#include "common/BitmapResources.h"
 
 BEGIN_EVENT_TABLE(frmCredits, wxDialog)
 EVT_PAINT(frmCredits::OnPaint)
@@ -46,7 +47,13 @@ frmCredits::frmCredits()
         wxT("\nThis program is free software licensed under the GNU GPL.  Email modstudio@corsix.org for details\n"
             "Definitive Edition code is located at github.com/jbelford/CorsixModStudio"));
 
-    m_pLoadingImage = std::make_unique<wxBitmap>(wxT("RIDB_LOADING"), wxBITMAP_TYPE_BMP_RESOURCE);
+    m_pLoadingImage =
+        std::make_unique<wxBitmap>(CDMSBitmapResources::LoadBitmap(wxT("RIDB_LOADING"), wxT("logo_smaller.bmp")));
+    if (!m_pLoadingImage->IsOk())
+    {
+        wxLogError(wxT("Failed to load the credits bitmap."));
+        m_pLoadingImage.reset();
+    }
     m_pText = new wxStaticText(this, -1, sCredits, FromDIP(wxPoint(0, 317)), FromDIP(wxSize(384, 167)),
                                wxST_NO_AUTORESIZE | wxALIGN_LEFT);
     // m_pText->Wrap(384);
@@ -63,9 +70,12 @@ void frmCredits::OnPaint(wxPaintEvent &event)
 {
     UNUSED(event);
     wxPaintDC dc(this);
-    wxMemoryDC temp_dc;
-    temp_dc.SelectObject(*m_pLoadingImage);
-    dc.Blit(0, 0, 384, 384, &temp_dc, 0, 0);
+    if (m_pLoadingImage)
+    {
+        wxMemoryDC temp_dc;
+        temp_dc.SelectObject(*m_pLoadingImage);
+        dc.Blit(0, 0, 384, 384, &temp_dc, 0, 0);
+    }
 }
 
 void frmCredits::SetMessage(wxString &sMsg) { m_pText->SetLabel(sMsg); }

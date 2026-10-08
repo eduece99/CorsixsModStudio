@@ -33,11 +33,12 @@
 // ----------------------------
 #include <wx/bitmap.h>
 #include <functional>
+#include <memory>
 
 class frmLoading : public wxFrame
 {
   protected:
-    wxBitmap *m_pLoadingImage;
+    std::unique_ptr<wxBitmap> m_pLoadingImage;
     wxStaticText *m_pText;
     wxButton *m_pCancelButton;
     std::function<void()> m_fnOnCancel;

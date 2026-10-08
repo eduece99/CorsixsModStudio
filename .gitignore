@@ -60,3 +60,9 @@ logs/
 test_logs/
 
 PHASES.md
+
+# CMake auto-generated files
+CMakeCache.txt
+CMakeFiles/*
+DartConfiguration.tcl
+
