@@ -148,11 +148,38 @@ It will not overwrite an existing published release.
 To make the same portable ZIP locally after a Release build, run
 `cpack --preset release`; CMake install rules define its contents.
 
-### Prerequisites
+### Windows Prerequisites
 
 - **Visual Studio 2022 or later** (tested with VS 2026 Enterprise)
 - **vcpkg** — `git clone https://github.com/microsoft/vcpkg.git C:\vcpkg && C:\vcpkg\bootstrap-vcpkg.bat`
 - **CMake 3.20+** (bundled with Visual Studio)
+
+### Linux Prerequisites
+
+Building on Linux requires a working C++ toolchain, CMake, and the dependencies used by the project. The exact package names vary by distro, but the following are typically required:
+
+- **CMake 3.20+**
+- **A modern C++ compiler** such as GCC 12+ or Clang 16+
+- **Ninja** or another generator supported by the project presets
+- **vcpkg** — used to install the native dependencies for the build
+- **Development libraries** for the project dependencies, including:
+  - `wxWidgets` (GUI toolkit)
+  - `zlib`
+  - `libsquish`
+  - `spdlog`
+  - `nlohmann-json`
+  - `GoogleTest`
+  - `pkg-config` and other standard build utilities
+
+For Debian/Ubuntu-based systems, a typical setup is:
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake ninja-build git pkg-config
+```
+
+Then install the required vcpkg dependency set and configure the project using the CMake presets for your target platform. On Linux, this is expected to use the native `x64-linux`-style vcpkg triplet instead of the Windows MSVC preset.
+
 
 ### Build Commands
 
@@ -213,6 +240,21 @@ The original bundled a modified zlib with a custom `crc32_case_idt()` function f
 ### Static vs Dynamic Library
 
 Rainman was originally a DLL (`__declspec(dllexport/import)`). We build it as a **static library** for simplicity — the only consumer is the CDMS executable. The `RAINMAN_NO_EXPORTS` define makes `RAINMAN_API` expand to nothing.
+
+
+### Summary of Linux Porting Changes
+
+The project keeps the Windows build intact while making the codebase portable to Linux by isolating platform-specific logic behind targeted guards and conditional packaging rules.
+
+- **Windows-only dependencies are kept behind `if(WIN32)` checks.** Libraries such as `winmm`, `comctl32`, `rpcrt4`, `wsock32`, `oleacc`, and `odbc32` are only linked on Windows, which avoids forcing Linux builds to depend on Win32-only libraries.
+- **CRT and MSVC definitions are scoped to the appropriate toolchains.** Items like `_CRT_SECURE_NO_WARNINGS`, `_CRT_NONSTDC_NO_DEPRECATE`, `UNICODE`, `_UNICODE`, and `WIN32_LEAN_AND_MEAN` remain in the target definitions, while `/W3` and `/wd...` flag settings are only applied under `if(MSVC)`.
+- **Resource handling is platform-aware.** The executable still copies the main `Mod_Studio_Files` directory next to the output binary, but non-Windows builds also copy the bitmap and icon assets explicitly instead of assuming a Windows-only layout.
+- **Lua Language Server packaging is conditional rather than hardcoded to Windows.** The project only copies the LuaLS bundle when `LUALS_DIR` exists and contains the expected binary, which makes the Linux layout easier to support without removing the Windows path.
+- **Installation rules are split by platform.** The application installs the main target and data files in the usual way, while non-Windows installs add the extra GUI assets required by the Linux packaging layout.
+
+This keeps the existing Windows behavior stable while allowing the project to build and package more cleanly across platforms.
+
+
 
 ## Documentation
 
