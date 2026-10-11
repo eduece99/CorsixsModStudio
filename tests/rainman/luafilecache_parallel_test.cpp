@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <future>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 // Verify that concurrent MakeState/FreeState calls don't corrupt the cache.
 TEST(CLuaFileCacheParallel, ConcurrentMakeAndFreeState)

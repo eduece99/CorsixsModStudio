@@ -6,6 +6,7 @@
 #include "rainman/core/Exception.h"
 #include <cstring>
 #include <string>
+#include <algorithm>
 
 class BfxFileTest : public ::testing::Test {
 protected:

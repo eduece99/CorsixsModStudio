@@ -180,6 +180,8 @@ sudo apt install build-essential cmake ninja-build git pkg-config
 
 Then install the required vcpkg dependency set and configure the project using the CMake presets for your target platform. On Linux, this is expected to use the native `x64-linux`-style vcpkg triplet instead of the Windows MSVC preset.
 
+Please ensure that your LD_LIBRARY_PATH environment variable is configured correctly to point to the locations of where the .so files of the above libraries are installed, otherwise you will get linker/ld errors upon compiling.
+
 
 ### Build Commands
 
