@@ -90,6 +90,7 @@ class RAINMAN_API CRgdFile : public IMetaNode
 
     void New(long iVersion = 1);
     void Load(IFileStore::IStream *pStream);
+    void Load(IFileStore::IStream *pStream, const char *sFilePath);
     void Load(CLuaFile *pLuaFile, long iVersion = 1);
     /*!
         \todo check DT_NoData and DT_WString references

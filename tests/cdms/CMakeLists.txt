@@ -8,6 +8,9 @@ set(CDMS_SRC_DIR ${CMAKE_SOURCE_DIR}/src/cdms)
 add_executable(de_archive_stub dearchive_stub.cpp)
 set_target_properties(de_archive_stub PROPERTIES OUTPUT_NAME Archive
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stubs")
+if(NOT WIN32)
+    set_target_properties(de_archive_stub PROPERTIES SUFFIX ".exe")
+endif()
 
 add_executable(cdms_tests
     placeholder_test.cpp

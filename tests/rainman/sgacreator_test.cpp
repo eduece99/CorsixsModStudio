@@ -62,8 +62,8 @@ protected:
 TEST_F(SgaCreatorTest, CreateAndReadBackVersion4)
 {
 	// Create test files
-	createFile("input\\readme.txt", "Hello SGA");
-	createFile("input\\subdir\\data.bin", "BinaryContent");
+	createFile("input/readme.txt", "Hello SGA");
+	createFile("input/subdir/data.bin", "BinaryContent");
 
 	// Create SGA
 	CFileSystemStore fsStore;
@@ -140,7 +140,7 @@ TEST_F(SgaCreatorTest, CreateAndReadBackVersion4)
 
 TEST_F(SgaCreatorTest, CreateAndReadBackVersion2)
 {
-	createFile("input\\hello.txt", "DoW Archive");
+	createFile("input/hello.txt", "DoW Archive");
 
 	CFileSystemStore fsStore;
 	fsStore.VInit();
@@ -168,7 +168,7 @@ TEST_F(SgaCreatorTest, CreateAndReadBackVersion2)
 
 TEST_F(SgaCreatorTest, InvalidVersionThrows)
 {
-	createFile("input\\file.txt", "test");
+	createFile("input/file.txt", "test");
 
 	CFileSystemStore fsStore;
 	fsStore.VInit();
@@ -209,7 +209,7 @@ TEST_F(SgaCreatorTest, NullDirectoryThrows)
 
 TEST_F(SgaCreatorTest, NullStoreThrows)
 {
-	createFile("input\\file.txt", "test");
+	createFile("input/file.txt", "test");
 
 	CFileSystemStore fsStore;
 	fsStore.VInit();

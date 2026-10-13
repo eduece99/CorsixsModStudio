@@ -50,7 +50,7 @@ void RelicToolResolver::ScanWithModule(const wxString &sModuleFile, CModuleFile:
     std::vector<wxString> vDirs;
 
     // Priority 1: module's own directory
-    wxString sModDir = sModuleFile.BeforeLast('\\');
+    wxString sModDir = wxFileName(sModuleFile).GetPath();
     if (!sModDir.empty())
     {
         vDirs.push_back(sModDir);
@@ -91,14 +91,18 @@ wxString RelicToolResolver::FindToolIn(const wxString &sDir, const wxString &sEx
     }
 
     // Check root directory
-    wxString sPath = sDir + wxT("\\") + sExeName;
+    wxFileName oRootTool(sDir, sExeName);
+    wxString sPath = oRootTool.GetFullPath();
     if (wxFileName::FileExists(sPath))
     {
         return sPath;
     }
 
     // Check ModTools subdirectory
-    sPath = sDir + wxT("\\ModTools\\") + sExeName;
+    wxFileName oModTools(sDir, wxEmptyString);
+    oModTools.AppendDir(wxT("ModTools"));
+    oModTools.SetFullName(sExeName);
+    sPath = oModTools.GetFullPath();
     if (wxFileName::FileExists(sPath))
     {
         return sPath;

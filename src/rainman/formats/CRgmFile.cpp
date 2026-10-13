@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/formats/CRgmFile.h"
 #include "rainman/core/Internal_Util.h"
 #include "rainman/core/memdebug.h"
+#include <cstdint>
 
 CRgmFile::CRgmFile() = default;
 
@@ -369,7 +370,7 @@ void CRgmFile::CMaterial::_ParseInfo(CChunkyFile::CChunk *pChunk)
     // Read
     CMemoryStore::CStream *pData = pChunk->GetData();
 
-    unsigned long iStrLen;
+    uint32_t iStrLen = 0;
     pData->VRead(1, sizeof(uint32_t), &iStrLen);
 
     m_sDxName.resize(iStrLen);
@@ -479,7 +480,9 @@ CRgmFile::CMaterial::CVariable::CVariable(CChunkyFile::CChunk *pChunk)
     // Read
     CMemoryStore::CStream *pData = pChunk->GetData();
 
-    unsigned long iStrLen, iDataType, iDataLen;
+    uint32_t iStrLen = 0;
+    uint32_t iDataType = 0;
+    uint32_t iDataLen = 0;
     pData->VRead(1, sizeof(uint32_t), &iStrLen);
 
     m_sName.resize(iStrLen);

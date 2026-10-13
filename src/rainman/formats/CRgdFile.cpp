@@ -548,7 +548,13 @@ void CRgdFile::_LoadLua(lua_State *L, _RgdEntry *pDest, bool bSkipThisLevelRef)
 
 void CRgdFile::Load(IFileStore::IStream *pStream)
 {
-    RAINMAN_LOG_INFO("CRgdFile::Load() — parsing RGD from stream");
+    Load(pStream, nullptr);
+}
+
+void CRgdFile::Load(IFileStore::IStream *pStream, const char *sFilePath)
+{
+    RAINMAN_LOG_INFO("CRgdFile::Load() — parsing RGD from stream '{}'",
+                     sFilePath ? sFilePath : "(unknown)");
     // Load RGD Header
     _Clean();
     if (pStream == nullptr)

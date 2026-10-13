@@ -186,9 +186,18 @@ TEST_F(FileSystemStoreTest, NormalizesWindowsSeparatorsOnLinux)
 
     std::unique_ptr<IDirectoryTraverser::IIterator> iterator(store.VIterate(windowsDir.c_str()));
     ASSERT_NE(iterator, nullptr);
-    EXPECT_EQ(iterator->VNextItem(), IDirectoryTraverser::IIterator::E_OK);
-    EXPECT_EQ(iterator->VNextItem(), IDirectoryTraverser::IIterator::E_OK);
-    EXPECT_EQ(iterator->VNextItem(), IDirectoryTraverser::IIterator::E_AtEnd);
+    ASSERT_EQ(iterator->VGetType(), IDirectoryTraverser::IIterator::T_File);
+    EXPECT_NO_THROW(iterator->VGetLastWriteTime());
+    bool foundPortable = false;
+    bool foundSecond = false;
+    do
+    {
+        const char *sName = iterator->VGetName();
+        foundPortable |= std::strcmp(sName, "portable.bin") == 0;
+        foundSecond |= std::strcmp(sName, "second.bin") == 0;
+    } while (iterator->VNextItem() == IDirectoryTraverser::IIterator::E_OK);
+    EXPECT_TRUE(foundPortable);
+    EXPECT_TRUE(foundSecond);
     std::unique_ptr<CFileSystemStore::CIteratorW> wideIterator(store.IterateW(wideWindowsDir.c_str()));
     ASSERT_NE(wideIterator, nullptr);
     EXPECT_TRUE(store.VDirectoryExists(windowsDir.c_str()));

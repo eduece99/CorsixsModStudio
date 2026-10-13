@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/formats/CChunkyFile.h"
 #include "rainman/core/memdebug.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 
 namespace
@@ -102,14 +103,24 @@ void CChunkyFile::Load(IFileStore::IStream *pStream)
             throw CRainmanException(nullptr, __FILE__, __LINE__, "Unrecognised header (%s)", m_sHeader.data());
         }
 
-        pStream->Read(m_iVersion);
-        pStream->VRead(1, sizeof(uint32_t), &m_iUnknown1);
-        if (m_iVersion >= 3)
+        uint32_t iVersion = 0;
+        uint32_t iUnknown1 = 0;
+        uint32_t iUnknown2 = 0;
+        uint32_t iUnknown3 = 0;
+        uint32_t iUnknown4 = 0;
+        pStream->VRead(1, sizeof(iVersion), &iVersion);
+        pStream->VRead(1, sizeof(iUnknown1), &iUnknown1);
+        if (iVersion >= 3)
         {
-            pStream->VRead(1, sizeof(uint32_t), &m_iUnknown2);
-            pStream->VRead(1, sizeof(uint32_t), &m_iUnknown3);
-            pStream->VRead(1, sizeof(uint32_t), &m_iUnknown4);
+            pStream->VRead(1, sizeof(iUnknown2), &iUnknown2);
+            pStream->VRead(1, sizeof(iUnknown3), &iUnknown3);
+            pStream->VRead(1, sizeof(iUnknown4), &iUnknown4);
         }
+        m_iVersion = static_cast<long>(iVersion);
+        m_iUnknown1 = static_cast<long>(iUnknown1);
+        m_iUnknown2 = static_cast<long>(iUnknown2);
+        m_iUnknown3 = static_cast<long>(iUnknown3);
+        m_iUnknown4 = static_cast<long>(iUnknown4);
     }
     catch (const CRainmanException &e)
     {
@@ -139,11 +150,16 @@ void CChunkyFile::Save(IFileStore::IOutputStream *pStream)
     try
     {
         pStream->VWrite(kHeaderReadSize, 1, m_sHeader.data());
-        pStream->VWrite(1, sizeof(uint32_t), &m_iVersion);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown1);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown2);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown3);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown4);
+        const uint32_t iVersion = static_cast<uint32_t>(m_iVersion);
+        const uint32_t iUnknown1 = static_cast<uint32_t>(m_iUnknown1);
+        const uint32_t iUnknown2 = static_cast<uint32_t>(m_iUnknown2);
+        const uint32_t iUnknown3 = static_cast<uint32_t>(m_iUnknown3);
+        const uint32_t iUnknown4 = static_cast<uint32_t>(m_iUnknown4);
+        pStream->VWrite(1, sizeof(iVersion), &iVersion);
+        pStream->VWrite(1, sizeof(iUnknown1), &iUnknown1);
+        pStream->VWrite(1, sizeof(iUnknown2), &iUnknown2);
+        pStream->VWrite(1, sizeof(iUnknown3), &iUnknown3);
+        pStream->VWrite(1, sizeof(iUnknown4), &iUnknown4);
     }
     catch (const CRainmanException &e)
     {
@@ -176,18 +192,26 @@ bool CChunkyFile::CChunk::_Load(IFileStore::IStream *pStream, long iChunkyVersio
     else
         throw CRainmanException(nullptr, __FILE__, __LINE__, "Unrecognised chunk type \'%s\'", sType);
 
-    unsigned long iDescriptorLength = 0;
+    uint32_t iVersion = 0;
+    uint32_t iDataLength = 0;
+    uint32_t iDescriptorLength = 0;
+    uint32_t iUnknown1 = 0;
+    uint32_t iUnknown2 = 0;
     try
     {
         pStream->VRead(4, 1, m_sName.data());
-        pStream->VRead(1, sizeof(uint32_t), &m_iVersion);
-        pStream->VRead(1, sizeof(uint32_t), &m_iDataLength);
+        pStream->VRead(1, sizeof(iVersion), &iVersion);
+        pStream->VRead(1, sizeof(iDataLength), &iDataLength);
         pStream->VRead(1, sizeof(uint32_t), &iDescriptorLength);
         if (iChunkyVersion >= 3)
         {
-            pStream->VRead(1, sizeof(uint32_t), &m_iUnknown1);
-            pStream->VRead(1, sizeof(uint32_t), &m_iUnknown2);
+            pStream->VRead(1, sizeof(iUnknown1), &iUnknown1);
+            pStream->VRead(1, sizeof(iUnknown2), &iUnknown2);
         }
+        m_iVersion = static_cast<long>(iVersion);
+        m_iDataLength = static_cast<unsigned long>(iDataLength);
+        m_iUnknown1 = static_cast<long>(iUnknown1);
+        m_iUnknown2 = static_cast<long>(iUnknown2);
     }
     catch (const CRainmanException &e)
     {
@@ -316,17 +340,22 @@ void CChunkyFile::CChunk::_Save(IFileStore::IOutputStream *pStream)
         iDescriptorLength += 1; // include null terminator in wire format
 
     _FoldUpdateSize();
+    const uint32_t iVersion = static_cast<uint32_t>(m_iVersion);
+    const uint32_t iDataLength = static_cast<uint32_t>(m_iDataLength);
+    const uint32_t iWireDescriptorLength = static_cast<uint32_t>(iDescriptorLength);
+    const uint32_t iUnknown1 = static_cast<uint32_t>(m_iUnknown1);
+    const uint32_t iUnknown2 = static_cast<uint32_t>(m_iUnknown2);
 
     try
     {
         pStream->VWrite(4, 1, m_sName.data());
-        pStream->VWrite(1, sizeof(uint32_t), &m_iVersion);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iDataLength);
-        pStream->VWrite(1, sizeof(uint32_t), &iDescriptorLength);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown1);
-        pStream->VWrite(1, sizeof(uint32_t), &m_iUnknown2);
-        if (iDescriptorLength > 0)
-            pStream->VWrite(iDescriptorLength, 1, m_sDescriptor.c_str());
+        pStream->VWrite(1, sizeof(iVersion), &iVersion);
+        pStream->VWrite(1, sizeof(iDataLength), &iDataLength);
+        pStream->VWrite(1, sizeof(iWireDescriptorLength), &iWireDescriptorLength);
+        pStream->VWrite(1, sizeof(iUnknown1), &iUnknown1);
+        pStream->VWrite(1, sizeof(iUnknown2), &iUnknown2);
+        if (iWireDescriptorLength > 0)
+            pStream->VWrite(iWireDescriptorLength, 1, m_sDescriptor.c_str());
     }
     catch (const CRainmanException &e)
     {

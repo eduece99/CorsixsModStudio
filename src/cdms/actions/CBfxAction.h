@@ -23,6 +23,7 @@
 #include "frame/Construct.h"
 #include "common/Utility.h"
 #include "actions/ActionUtil.h"
+#include "common/strconv.h"
 #include <rainman/formats/CRgdFile.h>
 #include <memory>
 
@@ -51,7 +52,8 @@ class CBfxAction : public frmFiles::IHandler
 
         auto pRgd = std::make_unique<CRgdFile>();
         pRgd->SetHashTable(TheConstruct->GetRgdHashTable());
-        pRgd->Load(stream.get());
+        const auto sFilePath = wxStringToAscii(sFile);
+        pRgd->Load(stream.get(), sFilePath.get());
 
         if (!pForm->FillFromMetaNode(pRgd.get()))
         {

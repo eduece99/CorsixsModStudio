@@ -21,6 +21,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include "rainman/core/memdebug.h"
 #include "rainman/core/Exception.h"
 #include "rainman/core/RainmanLog.h"
+#include <climits>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -52,6 +54,47 @@ bool CUcsFile::IsDollarString(const wchar_t *s)
         if (*s < '0' || *s > '9')
             return false;
         ++s;
+    }
+    return true;
+}
+
+static bool IsUnicodeNoncharacter(uint32_t iCodepoint)
+{
+    return (iCodepoint >= 0xFDD0 && iCodepoint <= 0xFDEF) || (iCodepoint & 0xFFFE) == 0xFFFE;
+}
+
+static bool DecodeUcsString(const uint16_t *pSource, size_t iLength, wchar_t *pDestination, size_t &iDecodedLength)
+{
+    iDecodedLength = 0;
+    for (size_t i = 0; i < iLength; ++i)
+    {
+        uint32_t iCodepoint = pSource[i];
+        if (iCodepoint >= 0xD800 && iCodepoint <= 0xDBFF)
+        {
+            if (i + 1 >= iLength || pSource[i + 1] < 0xDC00 || pSource[i + 1] > 0xDFFF)
+                return false;
+            iCodepoint = 0x10000 + ((iCodepoint - 0xD800) << 10) + (pSource[++i] - 0xDC00);
+        }
+        else if (iCodepoint >= 0xDC00 && iCodepoint <= 0xDFFF)
+        {
+            return false;
+        }
+
+        if (IsUnicodeNoncharacter(iCodepoint))
+            return false;
+
+#if WCHAR_MAX <= 0xFFFF
+        if (iCodepoint > 0xFFFF)
+        {
+            iCodepoint -= 0x10000;
+            pDestination[iDecodedLength++] = static_cast<wchar_t>(0xD800 + (iCodepoint >> 10));
+            pDestination[iDecodedLength++] = static_cast<wchar_t>(0xDC00 + (iCodepoint & 0x3FF));
+        }
+        else
+#endif
+        {
+            pDestination[iDecodedLength++] = static_cast<wchar_t>(iCodepoint);
+        }
     }
     return true;
 }
@@ -342,9 +385,10 @@ void CUcsFile::Load(IFileStore::IStream *pStream)
         // Copy the string value
         auto iLen = static_cast<size_t>(pLineEnd - p);
         std::unique_ptr<wchar_t[]> sString(new wchar_t[iLen + 1]);
-        for (size_t j = 0; j < iLen; ++j)
-            sString[j] = static_cast<wchar_t>(p[j]);
-        sString[iLen] = 0;
+        size_t iDecodedLength;
+        if (!DecodeUcsString(p, iLen, sString.get(), iDecodedLength))
+            continue;
+        sString[iDecodedLength] = 0;
 
         m_map.Add(iNumber, std::move(sString));
     }

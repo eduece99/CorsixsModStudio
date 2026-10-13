@@ -8,7 +8,16 @@
 #include <wx/file.h>
 #include <wx/filename.h>
 #include <fstream>
+#include <filesystem>
 #include "../common/TestProcessId.h"
+
+namespace
+{
+wxString JoinPath(const wxString &sParent, const wxString &sChild)
+{
+    return wxString((std::filesystem::path(sParent.ToStdWstring()) / sChild.ToStdWstring()).wstring());
+}
+} // namespace
 
 class RelicToolResolverTest : public ::testing::Test
 {
@@ -17,7 +26,9 @@ class RelicToolResolverTest : public ::testing::Test
 
     void SetUp() override
     {
-        m_sTempDir = wxFileName::GetTempDir() + wxString::Format(wxT("\\RelicToolResolverTest_%d"), GetTestProcessId());
+        const auto tempDir = std::filesystem::temp_directory_path() /
+                             ("RelicToolResolverTest_" + std::to_string(GetTestProcessId()));
+        m_sTempDir = wxString(tempDir.wstring());
         wxFileName::Mkdir(m_sTempDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
     }
 
@@ -31,8 +42,8 @@ class RelicToolResolverTest : public ::testing::Test
     void CreateFakeExe(const wxString &sDir, const wxString &sExeName)
     {
         wxFileName::Mkdir(sDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-        wxString sPath = sDir + wxT("\\") + sExeName;
-        std::ofstream ofs(sPath.ToStdString());
+        wxString sPath = JoinPath(sDir, sExeName);
+        std::ofstream ofs(std::filesystem::path(sPath.ToStdWstring()));
         ofs << "fake";
         ofs.close();
     }
@@ -48,7 +59,7 @@ TEST_F(RelicToolResolverTest, FindToolInRootDir)
 
 TEST_F(RelicToolResolverTest, FindToolInModToolsSubdir)
 {
-    wxString sModTools = m_sTempDir + wxT("\\ModTools");
+    wxString sModTools = JoinPath(m_sTempDir, wxT("ModTools"));
     CreateFakeExe(sModTools, wxT("FxTool.exe"));
 
     wxString sResult = RelicToolResolver::FindToolIn(m_sTempDir, wxT("FxTool.exe"));
@@ -60,7 +71,7 @@ TEST_F(RelicToolResolverTest, FindToolPrefersRoot)
 {
     // Put tool in both root and ModTools — root should win
     CreateFakeExe(m_sTempDir, wxT("ObjectEditor.exe"));
-    wxString sModTools = m_sTempDir + wxT("\\ModTools");
+    wxString sModTools = JoinPath(m_sTempDir, wxT("ModTools"));
     CreateFakeExe(sModTools, wxT("ObjectEditor.exe"));
 
     wxString sResult = RelicToolResolver::FindToolIn(m_sTempDir, wxT("ObjectEditor.exe"));
@@ -112,34 +123,35 @@ TEST_F(RelicToolResolverTest, InitiallyNoneFound)
 
 TEST_F(RelicToolResolverTest, UsesProjectDirectoryWhenModuleHasPipeline)
 {
-    const wxString sProject = m_sTempDir + wxT("\\My Mod");
+    const wxString sProject = JoinPath(m_sTempDir, wxT("My Mod"));
     wxFileName::Mkdir(sProject, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-    wxFile oPipeline(sProject + wxT("\\pipeline.ini"), wxFile::write);
+    wxFile oPipeline(JoinPath(sProject, wxT("pipeline.ini")), wxFile::write);
     ASSERT_TRUE(oPipeline.IsOpened());
     ASSERT_TRUE(oPipeline.Write("[project:MyMod]\n"));
-    const wxString sExe = m_sTempDir + wxT("\\ObjectEditor.exe");
-    EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, sProject + wxT("\\MyMod.module")), sProject);
-    EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, sProject + wxT("\\missing\\other.module")), m_sTempDir);
+    const wxString sExe = JoinPath(m_sTempDir, wxT("ObjectEditor.exe"));
+    EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, JoinPath(sProject, wxT("MyMod.module"))), sProject);
+    EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, JoinPath(sProject, wxT("missing/other.module"))),
+              m_sTempDir);
     EXPECT_EQ(RelicToolResolver::GetWorkingDirectory(sExe, wxEmptyString), m_sTempDir);
 }
 
 TEST_F(RelicToolResolverTest, AudioEditorReceivesModAssistantWorkingDirectory)
 {
-    const wxString project = m_sTempDir + wxT("\\My Project");
-    const wxString mod = project + wxT("\\Mod");
+    const wxString project = JoinPath(m_sTempDir, wxT("My Project"));
+    const wxString mod = JoinPath(project, wxT("Mod"));
     wxFileName::Mkdir(mod, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
-    wxFile oPipeline(project + wxT("\\pipeline.ini"), wxFile::write);
+    wxFile oPipeline(JoinPath(project, wxT("pipeline.ini")), wxFile::write);
     ASSERT_TRUE(oPipeline.IsOpened());
     ASSERT_TRUE(oPipeline.Write("[project:MyProject]\n"));
-    const wxString module = project + wxT("\\MyProject.module");
+    const wxString module = JoinPath(project, wxT("MyProject.module"));
 
     EXPECT_EQ(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"), module, wxT("Mod")),
               wxT("-wkdir \"") + mod + wxT("\""));
     EXPECT_TRUE(RelicToolResolver::GetToolParameters(wxT("ObjectEditor.exe"), module, wxT("Mod")).empty());
     EXPECT_TRUE(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"),
-                                                     project + wxT("\\other\\Other.module"), wxT("Mod")).empty());
+                                                     JoinPath(project, wxT("other/Other.module")), wxT("Mod")).empty());
     EXPECT_THROW(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"), module, wxT("missing")),
                  std::invalid_argument);
-    EXPECT_THROW(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"), module, wxT("..\\Mod")),
+    EXPECT_THROW(RelicToolResolver::GetToolParameters(wxT("AudioEditor.exe"), module, wxT("../Mod")),
                  std::invalid_argument);
 }

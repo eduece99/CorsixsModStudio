@@ -259,7 +259,7 @@ void AutoDPS_Internal::AutoDPS_FileForEach(IDirectoryTraverser::IIterator *pFile
         std::unique_ptr<IFileStore::IStream> pIn(pFileItr->VOpenFile());
 
         CRgdFile oRgd;
-        oRgd.Load(pIn.get());
+        oRgd.Load(pIn.get(), pFileItr->VGetFullPath());
 
         auto *pWeapon = new tAutoDPS_WeaponInfo;
         pWeapon->sFileName = strdup(sFileName);
@@ -277,7 +277,7 @@ void AutoDPS_Internal::AutoDPS_RacebpsForEach(IDirectoryTraverser::IIterator *pF
         std::unique_ptr<IFileStore::IStream> pIn(pFileItr->VOpenFile());
 
         CRgdFile oRgd;
-        oRgd.Load(pIn.get());
+        oRgd.Load(pIn.get(), pFileItr->VGetFullPath());
 
         AutoDPS_RacebpsForEach_Rgd(&oRgd, (tAutoDPS_Package *)pTag);
     }
@@ -332,7 +332,7 @@ void AutoDPS_Internal::AutoDPS_EbpsForEach(IDirectoryTraverser::IIterator *pFile
         std::unique_ptr<IFileStore::IStream> pIn(pFileItr->VOpenFile());
 
         CRgdFile oRgd;
-        oRgd.Load(pIn.get());
+        oRgd.Load(pIn.get(), pFileItr->VGetFullPath());
 
         AutoDPS_EbpsForEach_Rgd(&oRgd, (tAutoDPS_Package *)pTag, sFileName);
     }

@@ -71,7 +71,7 @@ class FileMapOutputTest : public ::testing::Test
         CFileMap::DirEntry subdirEntry;
         subdirEntry.name = subdir;
         subdirEntry.isFile = false;
-        subdirEntry.directoryPath = rootPath + "\\" + subdir;
+        subdirEntry.directoryPath = (std::filesystem::path(rootPath) / subdir).string();
         subdirEntry.lastWriteTime = 0;
         subdirEntry.children.push_back(std::move(fileEntry));
 
@@ -133,7 +133,7 @@ TEST_F(FileMapOutputTest, SaveToEmptyDataFolderSourceSucceeds)
     ASSERT_NE(pSgaSrc, nullptr);
 
     // Create a fake "SGA directory" on disk so the file store can iterate it
-    createFile("SgaData\\attrib\\test_file.rgd", "sga_content");
+    createFile("SgaData/attrib/test_file.rgd", "sga_content");
     std::string sgaDataPath = filePath("SgaData");
 
     CFileMap::DirEntry sgaSnapshot = buildNestedSnapshot(sgaDataPath, "attrib", "test_file.rgd");
@@ -154,7 +154,7 @@ TEST_F(FileMapOutputTest, SaveToEmptyDataFolderSourceSucceeds)
     delete pOutStream;
 
     // Verify the file was created in the Data folder (not the SGA folder)
-    std::string savedFilePath = dataFolderPath + "\\attrib\\test_file.rgd";
+    std::string savedFilePath = (std::filesystem::path(dataFolderPath) / "attrib" / "test_file.rgd").string();
     EXPECT_TRUE(std::filesystem::exists(savedFilePath)) << "File should be saved in Data folder: " << savedFilePath;
 }
 
@@ -177,7 +177,7 @@ TEST_F(FileMapOutputTest, ReportsPhysicalFolderPathForVirtualFolder)
     const auto sourcePaths = fileMap.GetSourceFolderPaths("Generic\\attrib\\");
     ASSERT_EQ(sourcePaths.size(), 1u);
     EXPECT_TRUE(std::filesystem::path(sourcePaths.front()).is_absolute());
-    EXPECT_EQ(std::filesystem::path(sourcePaths.front()).lexically_normal(), attribPath.lexically_normal());
+    EXPECT_EQ(std::filesystem::canonical(sourcePaths.front()), std::filesystem::canonical(attribPath));
 }
 
 // When no default-output source is registered, VOpenOutputStream should throw
@@ -193,7 +193,7 @@ TEST_F(FileMapOutputTest, SaveFailsWithoutDefaultOutputSource)
         0, true, 15001, "TestMod", "W40k.sga", &fsStore, &fsStore,
         false, false, false);
 
-    createFile("SgaData\\attrib\\test_file.rgd", "sga_content");
+    createFile("SgaData/attrib/test_file.rgd", "sga_content");
     CFileMap::DirEntry sgaSnapshot = buildNestedSnapshot(filePath("SgaData"), "attrib", "test_file.rgd");
     fileMap.MapSnapshot(pSgaSrc, "Data", sgaSnapshot);
 
@@ -232,7 +232,7 @@ TEST_F(FileMapOutputTest, SaveCreatesSubdirectoriesOnDemand)
         0, true, 15001, "TestMod", "W40k.sga", &fsStore, &fsStore,
         false, false, false);
 
-    createFile("SgaData\\attrib\\test_file.rgd", "sga_content");
+    createFile("SgaData/attrib/test_file.rgd", "sga_content");
     CFileMap::DirEntry sgaSnapshot = buildNestedSnapshot(filePath("SgaData"), "attrib", "test_file.rgd");
     fileMap.MapSnapshot(pSgaSrc, "Data", sgaSnapshot);
 
@@ -247,6 +247,6 @@ TEST_F(FileMapOutputTest, SaveCreatesSubdirectoriesOnDemand)
     delete pOutStream;
 
     // Verify the entire path was created
-    std::string savedFilePath = dataFolderPath + "\\attrib\\test_file.rgd";
+    std::string savedFilePath = (std::filesystem::path(dataFolderPath) / "attrib" / "test_file.rgd").string();
     EXPECT_TRUE(std::filesystem::exists(savedFilePath)) << "File should be created on demand: " << savedFilePath;
 }

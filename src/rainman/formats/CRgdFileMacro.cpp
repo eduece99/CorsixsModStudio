@@ -553,7 +553,7 @@ void CRgdFileMacro::_tCRgdFile::_loadRgd()
 
     try
     {
-        pRgd->Load(pStream.get());
+        pRgd->Load(pStream.get(), sFile);
     }
     catch (const CRainmanException &e)
     {

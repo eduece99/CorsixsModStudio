@@ -105,7 +105,7 @@ class CBfxToLuaDumpAction : public frmFiles::IHandler
         oRgd.SetHashTable(TheConstruct->GetRgdHashTable());
         try
         {
-            oRgd.Load(pIn);
+            oRgd.Load(pIn, saFile);
         }
         catch (const CRainmanException &e)
         {

@@ -467,7 +467,7 @@ IMetaNode::IMetaTable *MakeLuaFromRgdAndNil_LoadTable(IMetaNode::IMetaTable *pSr
                     try
                     {
                         pRgd->SetHashTable(pHashTable);
-                        pRgd->Load(pInStream.get());
+                        pRgd->Load(pInStream.get(), sFullpath);
                     }
                     catch (const CRainmanException &e)
                     {
@@ -739,7 +739,7 @@ void MakeLuaFromRgdAndNil_MakeNil_OnFile(IDirectoryTraverser::IIterator *pFile, 
     {
         std::unique_ptr<IFileStore::IStream> pStream(pFile->VOpenFile());
         CRgdFile oRgd;
-        oRgd.Load(pStream.get());
+        oRgd.Load(pStream.get(), pFile->VGetFullPath());
         MakeLuaFromRgdAndNil_MakeNil_OnFile_Recurse((IMetaNode *)&oRgd, (MakeLuaFromRgdAndNil_Nil_Node *)pTag);
     }
 }

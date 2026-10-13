@@ -101,8 +101,8 @@ TEST_F(FileMapParallelTest, RegisterSourceThenMapIteratorSequential)
     fsStore.VInit();
 
     // Create a small directory to iterate
-    createFile("testfolder\\file1.txt", "content1");
-    createFile("testfolder\\file2.txt", "content2");
+    createFile("testfolder/file1.txt", "content1");
+    createFile("testfolder/file2.txt", "content2");
 
     // Register two sources in parallel
     auto f1 = std::async(std::launch::async, [&]() {

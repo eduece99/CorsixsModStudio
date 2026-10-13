@@ -33,6 +33,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 namespace
 {
+wxString JoinPath(const wxString &sParent, const wxString &sChild)
+{
+    return wxString((std::filesystem::path(sParent.ToStdWstring()) / sChild.ToStdWstring()).wstring());
+}
+
 class CDeArchiveToolTest : public ::testing::Test
 {
   protected:
@@ -44,12 +49,12 @@ class CDeArchiveToolTest : public ::testing::Test
                            std::to_string(reinterpret_cast<std::uintptr_t>(this)));
         ASSERT_TRUE(std::filesystem::create_directory(root));
         m_sRoot = wxString(std::filesystem::canonical(root).wstring());
-        ASSERT_TRUE(wxFileName::Mkdir(m_sRoot + wxT("\\My Mod"), wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-        m_sFolder = m_sRoot + wxT("\\My Mod");
-        m_sConfig = m_sFolder + wxT("\\Data.sgaconfig");
-        m_sSource = m_sFolder + wxT("\\Data");
+        m_sFolder = JoinPath(m_sRoot, wxT("My Mod"));
+        ASSERT_TRUE(wxFileName::Mkdir(m_sFolder, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
+        m_sConfig = JoinPath(m_sFolder, wxT("Data.sgaconfig"));
+        m_sSource = JoinPath(m_sFolder, wxT("Data"));
         ASSERT_TRUE(wxFileName::Mkdir(m_sSource, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-        m_sOutput = m_sFolder + wxT("\\Data.sga");
+        m_sOutput = JoinPath(m_sFolder, wxT("Data.sga"));
         m_sExecutable = wxString(std::filesystem::canonical(std::filesystem::path(DE_ARCHIVE_STUB_PATH)).wstring());
         wxFile oConfig(m_sConfig, wxFile::write);
         ASSERT_TRUE(oConfig.IsOpened());
@@ -85,7 +90,7 @@ TEST_F(CDeArchiveToolTest, ExactInstalledArchiveCreateContract)
     std::vector<wxString> vArgs;
     wxString sError;
     ASSERT_TRUE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource, m_sOutput, vArgs, sError)) << sError;
-    const std::vector<wxString> vExpected = {m_sExecutable, wxT("-a"), m_sFolder + wxT("\\Data.sga"),
+    const std::vector<wxString> vExpected = {m_sExecutable, wxT("-a"), JoinPath(m_sFolder, wxT("Data.sga")),
                                              wxT("-c"), m_sConfig, wxT("-r"), m_sFolder};
     ASSERT_EQ(vArgs.size(), vExpected.size());
     for (size_t i = 0; i < vArgs.size(); ++i)
@@ -96,7 +101,7 @@ TEST_F(CDeArchiveToolTest, ExactInstalledArchiveCreateContract)
 
 TEST_F(CDeArchiveToolTest, AcceptsConfigOutsideSourceRoot)
 {
-    const wxString sOther = m_sRoot + wxT("\\outside.sgaconfig");
+    const wxString sOther = JoinPath(m_sRoot, wxT("outside.sgaconfig"));
     wxFile oFile(sOther, wxFile::write);
     ASSERT_TRUE(oFile.IsOpened());
     std::vector<wxString> vArgs;
@@ -111,7 +116,7 @@ TEST_F(CDeArchiveToolTest, RejectsMissingExecutableAndNonConfigFile)
 {
     std::vector<wxString> vArgs;
     wxString sError;
-    EXPECT_FALSE(CDeArchiveTool::Prepare(m_sRoot + wxT("\\missing.exe"), m_sConfig, m_sSource, m_sOutput, vArgs, sError));
+    EXPECT_FALSE(CDeArchiveTool::Prepare(JoinPath(m_sRoot, wxT("missing.exe")), m_sConfig, m_sSource, m_sOutput, vArgs, sError));
     EXPECT_FALSE(sError.empty());
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sExecutable, m_sSource, m_sOutput, vArgs, sError));
     EXPECT_FALSE(sError.empty());
@@ -119,9 +124,9 @@ TEST_F(CDeArchiveToolTest, RejectsMissingExecutableAndNonConfigFile)
 
 TEST_F(CDeArchiveToolTest, FindsBurnAndArchiveConfigOutsideVirtualGameData)
 {
-    const wxString sGeneric = m_sRoot + wxT("\\DataGeneric");
+    const wxString sGeneric = JoinPath(m_sRoot, wxT("DataGeneric"));
     ASSERT_TRUE(wxFileName::Mkdir(sGeneric, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-    const wxString sBurn = sGeneric + wxT("\\_default.burn");
+    const wxString sBurn = JoinPath(sGeneric, wxT("_default.burn"));
     wxFile oFile(sBurn, wxFile::write);
     ASSERT_TRUE(oFile.IsOpened());
     const auto vBurns = CDeArchiveTool::FindFiles(m_sRoot, CDeArchiveTool::EditorType::Burn);
@@ -134,12 +139,12 @@ TEST_F(CDeArchiveToolTest, FindsBurnAndArchiveConfigOutsideVirtualGameData)
 
 TEST_F(CDeArchiveToolTest, FindsNestedProjectFiles)
 {
-    const wxString sBurnFolder = m_sRoot + wxT("\\DataGeneric\\Nested");
-    const wxString sConfigFolder = m_sFolder + wxT("\\Nested");
+    const wxString sBurnFolder = JoinPath(m_sRoot, wxT("DataGeneric/Nested"));
+    const wxString sConfigFolder = JoinPath(m_sFolder, wxT("Nested"));
     ASSERT_TRUE(wxFileName::Mkdir(sBurnFolder, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
     ASSERT_TRUE(wxFileName::Mkdir(sConfigFolder, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-    const wxString sBurn = sBurnFolder + wxT("\\_default.burn");
-    const wxString sConfig = sConfigFolder + wxT("\\Other.sgaconfig");
+    const wxString sBurn = JoinPath(sBurnFolder, wxT("_default.burn"));
+    const wxString sConfig = JoinPath(sConfigFolder, wxT("Other.sgaconfig"));
     wxFile burn(sBurn, wxFile::write), config(sConfig, wxFile::write);
     ASSERT_TRUE(burn.IsOpened());
     ASSERT_TRUE(config.IsOpened());
@@ -156,8 +161,8 @@ TEST_F(CDeArchiveToolTest, FindsNestedProjectFiles)
 
 TEST_F(CDeArchiveToolTest, FindsAndEditsOnlyProjectRootPipeline)
 {
-    const wxString pipeline = m_sRoot + wxT("\\pipeline.ini");
-    const wxString nested = m_sFolder + wxT("\\pipeline.ini");
+    const wxString pipeline = JoinPath(m_sRoot, wxT("pipeline.ini"));
+    const wxString nested = JoinPath(m_sFolder, wxT("pipeline.ini"));
     wxFile projectFile(pipeline, wxFile::write), nestedFile(nested, wxFile::write);
     ASSERT_TRUE(projectFile.IsOpened());
     ASSERT_TRUE(nestedFile.IsOpened());
@@ -191,13 +196,13 @@ TEST_F(CDeArchiveToolTest, TextEditsPersistToDisk)
     ASSERT_TRUE(CDeArchiveTool::SaveText(m_sConfig, wxT("Archive\nTOCEnd\n"), sError)) << sError;
     ASSERT_TRUE(CDeArchiveTool::ReadText(m_sConfig, sContent, sError)) << sError;
     EXPECT_EQ(sContent, wxT("Archive\nTOCEnd\n"));
-    EXPECT_FALSE(CDeArchiveTool::SaveText(m_sRoot + wxT("\\missing.burn"), wxT("x"), sError));
+    EXPECT_FALSE(CDeArchiveTool::SaveText(JoinPath(m_sRoot, wxT("missing.burn")), wxT("x"), sError));
     EXPECT_FALSE(sError.empty());
 }
 
 TEST_F(CDeArchiveToolTest, DisplaysModAssistantBurnLineEndingsWithoutChangingSource)
 {
-    const wxString path = m_sRoot + wxT("\\_default.burn");
+    const wxString path = JoinPath(m_sRoot, wxT("_default.burn"));
     const std::string original = "burn_targets = {}\r\r\nburn_params = {}\r\r\n";
     wxFile file(path, wxFile::write);
     ASSERT_TRUE(file.IsOpened());
@@ -222,12 +227,12 @@ TEST_F(CDeArchiveToolTest, LaunchesWithPathsContainingSpaces)
 
 TEST_F(CDeArchiveToolTest, PassesDistinctConfigSourceAndOutputPathsWithSpaces)
 {
-    const wxString sRoot = m_sRoot + wxT("\\Different Input Parent");
-    const wxString sSource = sRoot + wxT("\\Data");
-    const wxString sOutputDir = m_sRoot + wxT("\\Different Output Parent");
+    const wxString sRoot = JoinPath(m_sRoot, wxT("Different Input Parent"));
+    const wxString sSource = JoinPath(sRoot, wxT("Data"));
+    const wxString sOutputDir = JoinPath(m_sRoot, wxT("Different Output Parent"));
     ASSERT_TRUE(wxFileName::Mkdir(sSource, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
     ASSERT_TRUE(wxFileName::Mkdir(sOutputDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
-    const wxString sOutput = sOutputDir + wxT("\\my custom.sga");
+    const wxString sOutput = JoinPath(sOutputDir, wxT("my custom.sga"));
     std::vector<wxString> vArgs;
     wxString sError;
     ASSERT_TRUE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, sSource, sOutput, vArgs, sError)) << sError;
@@ -251,7 +256,7 @@ TEST_F(CDeArchiveToolTest, RejectsSourceThatWouldResolveToDataData)
     std::vector<wxString> vArgs;
     wxString sError;
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sFolder,
-                                         m_sRoot + wxT("\\outside.sga"), vArgs, sError));
+                                         JoinPath(m_sRoot, wxT("outside.sga")), vArgs, sError));
     EXPECT_NE(sError.Find(wxT("relativeroot")), wxNOT_FOUND);
     EXPECT_TRUE(vArgs.empty());
 }
@@ -261,12 +266,12 @@ TEST_F(CDeArchiveToolTest, RejectsMissingOutputFolderAndNonSgaOutput)
     std::vector<wxString> vArgs;
     wxString sError;
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
-                                         m_sRoot + wxT("\\missing\\Data.sga"), vArgs, sError));
+                                         JoinPath(m_sRoot, wxT("missing/Data.sga")), vArgs, sError));
     EXPECT_FALSE(sError.empty());
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
-                                         m_sRoot + wxT("\\other.txt"), vArgs, sError));
+                                         JoinPath(m_sRoot, wxT("other.txt")), vArgs, sError));
     EXPECT_FALSE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
-                                         m_sSource + wxT("\\inside.sga"), vArgs, sError));
+                                         JoinPath(m_sSource, wxT("inside.sga")), vArgs, sError));
     EXPECT_NE(sError.Find(wxT("outside the source")), wxNOT_FOUND);
 }
 
@@ -292,7 +297,7 @@ TEST_F(CDeArchiveToolTest, RejectsOutputInsideSourceWithShortPathAlias)
 
 TEST_F(CDeArchiveToolTest, ResolvesNestedRelativeRootAgainstSelectedSource)
 {
-    const wxString sNested = m_sSource + wxT("\\Sub Folder");
+    const wxString sNested = JoinPath(m_sSource, wxT("Sub Folder"));
     ASSERT_TRUE(wxFileName::Mkdir(sNested, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL));
     wxFile oConfig(m_sConfig, wxFile::write);
     ASSERT_TRUE(oConfig.IsOpened());
@@ -327,7 +332,7 @@ TEST_F(CDeArchiveToolTest, ReportsProcessExitFailure)
     std::vector<wxString> vArgs;
     wxString sError;
     ASSERT_TRUE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
-                                        m_sFolder + wxT("\\failure.sga"), vArgs, sError)) << sError;
+                                        JoinPath(m_sFolder, wxT("failure.sga")), vArgs, sError)) << sError;
     EXPECT_FALSE(CDeArchiveTool::Run(vArgs, sError));
     EXPECT_NE(sError.Find(wxT("17")), wxNOT_FOUND);
 }
@@ -337,14 +342,14 @@ TEST_F(CDeArchiveToolTest, ReportsSuccessWithoutArchiveAsFailure)
     std::vector<wxString> vArgs;
     wxString sError;
     ASSERT_TRUE(CDeArchiveTool::Prepare(m_sExecutable, m_sConfig, m_sSource,
-                                        m_sFolder + wxT("\\missing.sga"), vArgs, sError)) << sError;
+                                        JoinPath(m_sFolder, wxT("missing.sga")), vArgs, sError)) << sError;
     EXPECT_FALSE(CDeArchiveTool::Run(vArgs, sError));
     EXPECT_NE(sError.Find(wxT("did not create")), wxNOT_FOUND);
 }
 
 TEST_F(CDeArchiveToolTest, ReportsUnchangedExistingArchiveAsFailure)
 {
-    const wxString sExisting = m_sFolder + wxT("\\missing.sga");
+    const wxString sExisting = JoinPath(m_sFolder, wxT("missing.sga"));
     wxFile oExisting(sExisting, wxFile::write);
     ASSERT_TRUE(oExisting.IsOpened());
     ASSERT_TRUE(oExisting.Write("old archive"));

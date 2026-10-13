@@ -4,6 +4,7 @@
 #include <memory>
 #include "rainman/core/Exception.h"
 #include <cstring>
+#include <cstdint>
 #include <vector>
 #include <optional>
 
@@ -11,8 +12,8 @@
 static CMemoryStore::COutStream *BuildMaterialInfoData(const char *sDxName)
 {
 	auto *pData = CMemoryStore::OpenOutputStreamExt();
-	unsigned long iLen = (unsigned long)strlen(sDxName);
-	pData->VWrite(1, sizeof(uint32_t), &iLen);
+	const uint32_t iLen = static_cast<uint32_t>(strlen(sDxName));
+	pData->VWrite(1, sizeof(iLen), &iLen);
 	pData->VWrite(iLen, 1, sDxName);
 	return pData;
 }

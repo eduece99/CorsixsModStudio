@@ -26,9 +26,32 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <climits>
+#include <cstdint>
 #include "../common/TestProcessId.h"
 #include <string>
 #include <vector>
+
+static void WriteUcsLine(IFileStore::IOutputStream *pStream, const std::wstring &sLine)
+{
+    std::vector<uint16_t> tUtf16;
+    tUtf16.reserve(sLine.size());
+    for (wchar_t c : sLine)
+    {
+        uint32_t iCodepoint = static_cast<uint32_t>(c);
+#if WCHAR_MAX > 0xFFFF
+        if (iCodepoint > 0xFFFF && iCodepoint <= 0x10FFFF)
+        {
+            iCodepoint -= 0x10000;
+            tUtf16.push_back(static_cast<uint16_t>(0xD800 + (iCodepoint >> 10)));
+            tUtf16.push_back(static_cast<uint16_t>(0xDC00 + (iCodepoint & 0x3FF)));
+            continue;
+        }
+#endif
+        tUtf16.push_back(static_cast<uint16_t>(iCodepoint));
+    }
+    pStream->VWrite(static_cast<unsigned long>(tUtf16.size()), sizeof(uint16_t), tUtf16.data());
+}
 
 // -- MapSnapshot tests --
 
@@ -59,10 +82,10 @@ class MapSnapshotTest : public ::testing::Test
 TEST_F(MapSnapshotTest, MapSnapshotProducesSameResultAsMapIterator)
 {
     // Create a directory tree
-    createFile("data\\attrib\\file1.lua", "-- lua1");
-    createFile("data\\attrib\\file2.lua", "-- lua2");
-    createFile("data\\art\\icon.tga", "TGA");
-    createFile("data\\readme.txt", "hello");
+    createFile("data/attrib/file1.lua", "-- lua1");
+    createFile("data/attrib/file2.lua", "-- lua2");
+    createFile("data/art/icon.tga", "TGA");
+    createFile("data/readme.txt", "hello");
 
     CFileSystemStore fsStore;
     fsStore.VInit();
@@ -192,7 +215,7 @@ TEST_F(MapSnapshotTest, MapSnapshotEmptyDirectory)
 
 TEST_F(MapSnapshotTest, MapSnapshotDeepNesting)
 {
-    createFile("deep\\a\\b\\c\\d\\leaf.txt", "deep content");
+    createFile("deep/a/b/c/d/leaf.txt", "deep content");
 
     CFileSystemStore fsStore;
     fsStore.VInit();
@@ -275,7 +298,7 @@ TEST(ParallelUcsLoading, IndependentCUcsFileInstancesLoadConcurrently)
         out->VWrite(1, sizeof(unsigned short), &bom);
 
         std::wstring line = std::to_wstring(i + 100) + L"\tValue_" + std::to_wstring(i) + L"\r\n";
-        out->VWrite(static_cast<unsigned long>(line.size()), sizeof(wchar_t), line.c_str());
+        WriteUcsLine(out, line);
 
         dataBuffers[i].buffer.assign(out->GetData(), out->GetData() + out->GetDataLength());
         delete out;
@@ -332,7 +355,7 @@ TEST(ParallelUcsLoading, ConcurrentLoadDoesNotCorruptOtherInstances)
             unsigned long id = static_cast<unsigned long>(i * 1000 + j);
             std::wstring line = std::to_wstring(id) + L"\tEntry_" + std::to_wstring(i) + L"_" +
                                 std::to_wstring(j) + L"\r\n";
-            out->VWrite(static_cast<unsigned long>(line.size()), sizeof(wchar_t), line.c_str());
+            WriteUcsLine(out, line);
         }
 
         dataBuffers[i].buffer.assign(out->GetData(), out->GetData() + out->GetDataLength());
@@ -471,7 +494,7 @@ TEST(BulkUcsLoading, LoadProducesCorrectEntries)
     for (const auto &entry : entries)
     {
         std::wstring line = std::to_wstring(entry.id) + L"\t" + entry.value + L"\r\n";
-        out->VWrite(static_cast<unsigned long>(line.size()), sizeof(wchar_t), line.c_str());
+        WriteUcsLine(out, line);
     }
 
     CUcsFile ucs;
@@ -521,15 +544,15 @@ TEST(BulkUcsLoading, LoadHandlesLineWithoutTab)
 
     // Valid entry
     std::wstring line1 = L"1\tValid Entry\r\n";
-    out->VWrite(static_cast<unsigned long>(line1.size()), sizeof(wchar_t), line1.c_str());
+    WriteUcsLine(out, line1);
 
     // Invalid line (no tab)
     std::wstring line2 = L"NoTabHere\r\n";
-    out->VWrite(static_cast<unsigned long>(line2.size()), sizeof(wchar_t), line2.c_str());
+    WriteUcsLine(out, line2);
 
     // Another valid entry
     std::wstring line3 = L"2\tAnother Entry\r\n";
-    out->VWrite(static_cast<unsigned long>(line3.size()), sizeof(wchar_t), line3.c_str());
+    WriteUcsLine(out, line3);
 
     CUcsFile ucs;
     auto *stream = CMemoryStore::OpenStreamExt(const_cast<char*>(out->GetData()),
@@ -557,7 +580,7 @@ TEST(BulkUcsLoading, LoadHandlesLargeFile)
     for (int i = 0; i < kNumEntries; ++i)
     {
         std::wstring line = std::to_wstring(i) + L"\tEntry number " + std::to_wstring(i) + L"\r\n";
-        out->VWrite(static_cast<unsigned long>(line.size()), sizeof(wchar_t), line.c_str());
+        WriteUcsLine(out, line);
     }
 
     CUcsFile ucs;

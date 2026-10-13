@@ -81,12 +81,13 @@ std::unique_ptr<CSgaCreator::CInputDirectory> CSgaCreator::_ScanDirectory(IDirec
     size_t iDirLen = strlen(sDirectory);
     if (iDirBaseL != 0)
     {
-        if (sDirectory[iDirLen - 1] != '\\')
-            pUs->sNameFull = sDirectory + iDirBaseL + 1;
-        else
-        {
-            pUs->sNameFull.assign(sDirectory + iDirBaseL, iDirLen - iDirBaseL - 1);
-        }
+        size_t iNameBegin = iDirBaseL;
+        while (iNameBegin < iDirLen && (sDirectory[iNameBegin] == '\\' || sDirectory[iNameBegin] == '/'))
+            ++iNameBegin;
+        size_t iNameEnd = iDirLen;
+        while (iNameEnd > iNameBegin && (sDirectory[iNameEnd - 1] == '\\' || sDirectory[iNameEnd - 1] == '/'))
+            --iNameEnd;
+        pUs->sNameFull.assign(sDirectory + iNameBegin, iNameEnd - iNameBegin);
     }
     else
     {
@@ -138,7 +139,7 @@ std::unique_ptr<CSgaCreator::CInputDirectory> CSgaCreator::_ScanDirectory(IDirec
                 }
                 CATCH_THROW("pDirectory problem")
                 pFile->iNameOffset = iDirLen;
-                if (pFile->sFullPath[iDirLen] == '\\')
+                if (pFile->sFullPath[iDirLen] == '\\' || pFile->sFullPath[iDirLen] == '/')
                     pFile->iNameOffset += 1;
                 pFile->pFileStore = pStore;
                 pUs->vFilesList.push_back(std::move(pFile));

@@ -82,18 +82,13 @@ TEST_F(UcsFileTest, ReplaceStringTransfersOwnership) {
 TEST_F(UcsFileTest, LoadUcsFromMemory) {
     ucs.New();
 
-    // Build a minimal UCS file in memory:
-    // BOM (0xFEFF) + "1\tHello\r\n"
+    // Build a minimal UTF-16LE UCS file in memory: BOM + "1\tHello\r\n"
     CMemoryStore store;
     store.VInit();
     auto* out = CMemoryStore::OpenOutputStreamExt();
 
-    unsigned short bom = 0xFEFF;
-    out->VWrite(1, sizeof(unsigned short), &bom);
-
-    // Write line: L"1\tHello\r\n"
-    const wchar_t line[] = L"1\tHello\r\n";
-    out->VWrite(static_cast<unsigned long>(wcslen(line)), sizeof(wchar_t), line);
+    const uint16_t data[] = {0xFEFF, '1', '\t', 'H', 'e', 'l', 'l', 'o', '\r', '\n'};
+    out->VWrite(sizeof(data) / sizeof(data[0]), sizeof(uint16_t), data);
 
     auto* inStream = CMemoryStore::OpenStreamExt(
         const_cast<char*>(out->GetData()), out->GetDataLength(), false);
@@ -104,6 +99,44 @@ TEST_F(UcsFileTest, LoadUcsFromMemory) {
     const wchar_t* result = ucs2.ResolveStringID(1);
     ASSERT_NE(result, nullptr);
     EXPECT_WSTREQ(L"Hello", result);
+
+    delete inStream;
+    delete out;
+}
+
+TEST_F(UcsFileTest, LoadSkipsInvalidUnicodeEntries)
+{
+    CMemoryStore store;
+    store.VInit();
+    auto *out = CMemoryStore::OpenOutputStreamExt();
+
+    const uint16_t data[] = {0xFEFF, '1', '\t', 'O', 'K', '\n',
+                             '2',    '\t', 0xFFFF, '\n',
+                             '3',    '\t', 0xD800, '\n',
+                             '4',    '\t', 'Y', 'E', 'S', '\n',
+                             '5',    '\t', 0xD83D, 0xDE00, '\n'};
+    out->VWrite(sizeof(data) / sizeof(data[0]), sizeof(uint16_t), data);
+
+    auto *inStream = CMemoryStore::OpenStreamExt(
+        const_cast<char *>(out->GetData()), out->GetDataLength(), false);
+    CUcsFile loaded;
+    loaded.Load(inStream);
+
+    EXPECT_STREQ(loaded.ResolveStringID(1), L"OK");
+    EXPECT_EQ(loaded.ResolveStringID(2), nullptr);
+    EXPECT_EQ(loaded.ResolveStringID(3), nullptr);
+    EXPECT_STREQ(loaded.ResolveStringID(4), L"YES");
+    const wchar_t *pSupplementaryCharacter = loaded.ResolveStringID(5);
+    ASSERT_NE(pSupplementaryCharacter, nullptr);
+    if constexpr (sizeof(wchar_t) > 2)
+    {
+        EXPECT_STREQ(pSupplementaryCharacter, L"\U0001F600");
+    }
+    else
+    {
+        const wchar_t expected[] = {static_cast<wchar_t>(0xD83D), static_cast<wchar_t>(0xDE00), 0};
+        EXPECT_STREQ(pSupplementaryCharacter, expected);
+    }
 
     delete inStream;
     delete out;

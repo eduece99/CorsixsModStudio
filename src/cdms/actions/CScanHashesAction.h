@@ -79,7 +79,8 @@ class CScanHashesAction : public frmFiles::IHandler
                             auto &stream = streamResult.value();
                             CRgdFile oRGD;
                             oRGD.SetHashTable(TheConstruct->GetRgdHashTable());
-                            oRGD.Load(stream.get());
+                            const auto sFilePath = wxStringToAscii(sFile);
+                            oRGD.Load(stream.get(), sFilePath.get());
                         }
                     }
                 }

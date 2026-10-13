@@ -235,7 +235,7 @@ bool CDeArchiveTool::Prepare(const wxString &sExecutable, const wxString &sConfi
         sError = wxT("No TOCStart relativeroot found in the archive configuration.");
         return false;
     }
-    sRelativeRoot.Replace(wxT("/"), wxT("\\"));
+    sRelativeRoot.Replace(wxT("\\"), wxT("/"));
     wxFileName oRelative = wxFileName::DirName(sRelativeRoot);
     if (oRelative.IsAbsolute() || oRelative.GetDirCount() == 0)
     {
