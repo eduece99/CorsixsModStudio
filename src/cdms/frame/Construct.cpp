@@ -699,6 +699,7 @@ size_t ConstructFrame::GetToolCount() { return m_toolRegistry.GetCount(); }
 ConstructFrame::ITool *ConstructFrame::GetTool(size_t i) { return m_toolRegistry.Get(i); }
 
 void ConstructFrame::DoTool(wxString sName) { m_toolRegistry.DoTool(sName); }
+void ConstructFrame::DoToolIdx(int index) { m_toolRegistry.DoToolIdx(index); }
 
 ConstructFrame::~ConstructFrame()
 {

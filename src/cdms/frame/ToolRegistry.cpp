@@ -45,6 +45,7 @@ void ToolRegistry::DoTool(const wxString &sName)
 {
     for (auto *pTool : m_vTools)
     {
+        std::cout << "Tool: " << pTool->GetName().ToStdString() << " vs " << sName.ToStdString() << std::endl;
         if (pTool->GetName() == sName)
         {
             pTool->DoAction();
@@ -52,4 +53,14 @@ void ToolRegistry::DoTool(const wxString &sName)
         }
     }
     ErrorBox("Tool description mismatch");
+}
+
+void ToolRegistry::DoToolIdx(const int index)
+{
+    if (index >= 0 && index < static_cast<int>(m_vTools.size()))
+    {
+        m_vTools[index]->DoAction();
+        return;
+    }   
+    ErrorBox("Tool description mismatch - invalid index");
 }

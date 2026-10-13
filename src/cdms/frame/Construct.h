@@ -148,6 +148,7 @@ class ConstructFrame : public wxFrame, public IMainFrameView
     size_t GetToolCount();
     ITool *GetTool(size_t i);
     void DoTool(wxString sName);
+    void DoToolIdx(int index);
     ToolRegistry &GetToolRegistry() { return m_toolRegistry; }
 
     void SetLoadingForm(frmLoading *pLoading);

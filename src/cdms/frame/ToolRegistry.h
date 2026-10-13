@@ -33,6 +33,7 @@ class ToolRegistry
 
     void LaunchTool(size_t index);
     void DoTool(const wxString &sName);
+    void DoToolIdx(const int index);
 
   private:
     std::vector<ITool *> m_vTools;
